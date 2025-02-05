@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -9,6 +10,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Calendar, Clock, Users } from "lucide-react";
+import AppointmentBookingForm from "@/components/AppointmentBookingForm";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const Appointments = () => {
   const departments = [
@@ -42,10 +51,20 @@ const Appointments = () => {
           <h1 className="text-3xl font-bold">Appointments</h1>
           <p className="text-gray-500 mt-1">Manage department queues and appointments</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90">
-          <Calendar className="w-4 h-4 mr-2" />
-          Book Appointment
-        </Button>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button className="bg-primary hover:bg-primary/90">
+              <Calendar className="w-4 h-4 mr-2" />
+              Book Appointment
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Book New Appointment</DialogTitle>
+            </DialogHeader>
+            <AppointmentBookingForm />
+          </DialogContent>
+        </Dialog>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
