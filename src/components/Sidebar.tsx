@@ -1,3 +1,4 @@
+
 import { Link, useLocation } from "react-router-dom";
 import { Calendar, Users, CreditCard, LayoutDashboard } from "lucide-react";
 
@@ -15,8 +16,7 @@ const Sidebar = () => {
     <div className="h-screen w-64 bg-white border-r border-gray-200 flex flex-col">
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center gap-2">
-          <img src="/lovable-uploads/5dbf5437-51b3-43a9-88a8-b258fa00aabe.png" alt="Logo" className="w-8 h-8" />
-          <span className="font-semibold text-xl">Hospital</span>
+          <span className="font-bold text-xl text-primary tracking-tight">HEALTHBRIDGE</span>
         </div>
       </div>
       
