@@ -1,6 +1,6 @@
 
 import { Link, useLocation } from "react-router-dom";
-import { Calendar, Users, CreditCard, LayoutDashboard } from "lucide-react";
+import { Calendar, Users, CreditCard, LayoutDashboard, Activity } from "lucide-react";
 
 const Sidebar = () => {
   const location = useLocation();
@@ -16,7 +16,19 @@ const Sidebar = () => {
     <div className="h-screen w-64 bg-white border-r border-gray-200 flex flex-col">
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center gap-2">
-          <span className="font-bold text-xl text-primary tracking-tight">HEALTHBRIDGE</span>
+          <div className="flex items-center">
+            <div className="relative">
+              <Activity className="w-8 h-8 text-primary animate-pulse" />
+              <div className="absolute -top-1 -left-1 w-10 h-10 bg-primary/10 rounded-full -z-10" />
+            </div>
+            <div className="ml-2">
+              <div className="font-bold text-lg tracking-tight leading-none">
+                HEALTH
+                <span className="text-primary">BRIDGE</span>
+              </div>
+              <div className="text-xs text-gray-500 tracking-wider">MEDICAL CENTER</div>
+            </div>
+          </div>
         </div>
       </div>
       
