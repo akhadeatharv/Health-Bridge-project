@@ -33,7 +33,7 @@ const formSchema = z.object({
 })
 
 interface AddPatientFormProps {
-  onSuccess?: () => void;
+  onSuccess?: (data: z.infer<typeof formSchema>) => void;
 }
 
 export function AddPatientForm({ onSuccess }: AddPatientFormProps) {
@@ -67,8 +67,8 @@ export function AddPatientForm({ onSuccess }: AddPatientFormProps) {
         description: "New patient has been registered in the system.",
       })
       
+      onSuccess?.(values)
       form.reset()
-      onSuccess?.()
     } catch (error) {
       toast({
         title: "Error",

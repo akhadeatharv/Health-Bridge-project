@@ -22,9 +22,18 @@ import {
 import { AddPatientForm } from "@/components/AddPatientForm";
 import { useState } from "react";
 
+interface Patient {
+  id: string;
+  name: string;
+  age: number;
+  department: string;
+  status: string;
+  room: string;
+}
+
 const Patients = () => {
   const [open, setOpen] = useState(false);
-  const patients = [
+  const [patients, setPatients] = useState<Patient[]>([
     {
       id: "P001",
       name: "John Doe",
@@ -49,7 +58,21 @@ const Patients = () => {
       status: "Critical",
       room: "ICU-2"
     },
-  ];
+  ]);
+
+  const handleAddPatient = (patientData: any) => {
+    const newPatient: Patient = {
+      id: `P${String(patients.length + 1).padStart(3, '0')}`,
+      name: patientData.name,
+      age: Number(patientData.age),
+      department: "General",  // Default department
+      status: "OPD",         // Default status
+      room: "-"              // Default room
+    };
+    
+    setPatients([...patients, newPatient]);
+    setOpen(false);
+  };
 
   return (
     <div className="p-8">
@@ -72,7 +95,7 @@ const Patients = () => {
                 Fill in the patient details below to register them in the system.
               </DialogDescription>
             </DialogHeader>
-            <AddPatientForm onSuccess={() => setOpen(false)} />
+            <AddPatientForm onSuccess={handleAddPatient} />
           </DialogContent>
         </Dialog>
       </div>
