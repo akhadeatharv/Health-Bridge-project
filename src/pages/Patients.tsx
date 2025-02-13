@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -10,8 +11,19 @@ import {
 } from "@/components/ui/table";
 import { UserPlus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { AddPatientForm } from "@/components/AddPatientForm";
+import { useState } from "react";
 
 const Patients = () => {
+  const [open, setOpen] = useState(false);
   const patients = [
     {
       id: "P001",
@@ -46,10 +58,23 @@ const Patients = () => {
           <h1 className="text-3xl font-bold">Patients</h1>
           <p className="text-gray-500 mt-1">Manage patient records and admissions</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90">
-          <UserPlus className="w-4 h-4 mr-2" />
-          Add Patient
-        </Button>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-primary hover:bg-primary/90">
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add Patient
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Patient</DialogTitle>
+              <DialogDescription>
+                Fill in the patient details below to register them in the system.
+              </DialogDescription>
+            </DialogHeader>
+            <AddPatientForm onSuccess={() => setOpen(false)} />
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card className="p-6">

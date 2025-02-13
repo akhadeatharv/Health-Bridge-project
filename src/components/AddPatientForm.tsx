@@ -1,3 +1,4 @@
+
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -31,7 +32,11 @@ const formSchema = z.object({
   bloodGroup: z.string().min(1, "Please select a blood group"),
 })
 
-export function AddPatientForm() {
+interface AddPatientFormProps {
+  onSuccess?: () => void;
+}
+
+export function AddPatientForm({ onSuccess }: AddPatientFormProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -48,19 +53,31 @@ export function AddPatientForm() {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsSubmitting(true)
-    // Here you would typically make an API call to save the patient data
-    console.log(values)
-    
-    setTimeout(() => {
-      setIsSubmitting(false)
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    try {
+      setIsSubmitting(true)
+      // Here you would typically make an API call to save the patient data
+      console.log(values)
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
       toast({
         title: "Patient Added Successfully",
         description: "New patient has been registered in the system.",
       })
+      
       form.reset()
-    }, 1000)
+      onSuccess?.()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add patient. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
