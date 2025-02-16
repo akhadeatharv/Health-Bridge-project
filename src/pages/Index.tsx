@@ -1,18 +1,11 @@
-
-import React from 'react';
-import LocationMap from '../components/LocationMap';
+// Update this page (the content is just a fallback if you fail to update the page)
 
 const Index = () => {
-  const handleLocationSelect = (hospitals: any[]) => {
-    console.log('Selected hospitals:', hospitals);
-  };
-
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Hospital Finder</h1>
-      <div className="bg-white p-6 rounded-lg shadow-lg">
-        <p className="text-gray-600 mb-4">Click on the map to find nearby hospitals</p>
-        <LocationMap onLocationSelect={handleLocationSelect} />
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
+        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
       </div>
     </div>
   );
