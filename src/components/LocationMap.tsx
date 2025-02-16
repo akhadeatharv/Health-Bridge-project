@@ -6,7 +6,8 @@ import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
 import { MapPin } from 'lucide-react';
 
-interface Hospital {
+export interface Hospital {
+  id: string;
   name: string;
   location: [number, number];
   bedAvailability: {
@@ -14,72 +15,126 @@ interface Hospital {
     available: number;
   };
   distance: string;
+  stats: {
+    totalPatients: number;
+    averageWaitTime: string;
+    bedOccupancy: number;
+    patientTrend: number;
+    departments: {
+      name: string;
+      nextAvailable: string;
+      queueLength: number;
+    }[];
+    queueData: {
+      time: string;
+      patients: number;
+    }[];
+    bedStatus: {
+      ward: string;
+      total: number;
+      occupied: number;
+      available: number;
+    }[];
+  };
 }
 
 interface LocationMapProps {
-  onLocationSelect: (hospitals: Hospital[]) => void;
+  onHospitalSelect: (hospital: Hospital) => void;
 }
 
-const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
+const LocationMap = ({ onHospitalSelect }: LocationMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const markersRef = useRef<L.Marker[]>([]);
 
-  // Sample hospital data - in a real app, this would come from an API
-  const nearbyHospitals: Hospital[] = [
+  // Sample hospital data with extended information
+  const hospitals: Hospital[] = [
     {
+      id: "1",
       name: "Central Hospital",
       location: [28.6139, 77.2090],
       bedAvailability: { total: 100, available: 25 },
-      distance: "2.5 km"
+      distance: "2.5 km",
+      stats: {
+        totalPatients: 248,
+        averageWaitTime: "28 min",
+        bedOccupancy: 75,
+        patientTrend: 12,
+        departments: [
+          { name: "Cardiology", nextAvailable: "2 days", queueLength: 15 },
+          { name: "Orthopedics", nextAvailable: "3 days", queueLength: 12 },
+          { name: "Pediatrics", nextAvailable: "1 day", queueLength: 8 }
+        ],
+        queueData: [
+          { time: '9:00', patients: 15 },
+          { time: '10:00', patients: 25 },
+          { time: '11:00', patients: 42 },
+          { time: '12:00', patients: 35 },
+          { time: '13:00', patients: 28 },
+          { time: '14:00', patients: 30 }
+        ],
+        bedStatus: [
+          { ward: "General Ward", total: 100, occupied: 75, available: 25 },
+          { ward: "ICU", total: 20, occupied: 18, available: 2 },
+          { ward: "Maternity", total: 30, occupied: 22, available: 8 }
+        ]
+      }
     },
     {
+      id: "2",
       name: "City Medical Center",
       location: [28.6200, 77.2000],
       bedAvailability: { total: 150, available: 40 },
-      distance: "3.1 km"
-    },
-    {
-      name: "Community Health Center",
-      location: [28.6100, 77.2150],
-      bedAvailability: { total: 80, available: 15 },
-      distance: "1.8 km"
+      distance: "3.1 km",
+      stats: {
+        totalPatients: 312,
+        averageWaitTime: "35 min",
+        bedOccupancy: 80,
+        patientTrend: -5,
+        departments: [
+          { name: "Cardiology", nextAvailable: "1 day", queueLength: 10 },
+          { name: "Orthopedics", nextAvailable: "2 days", queueLength: 8 },
+          { name: "Pediatrics", nextAvailable: "same day", queueLength: 5 }
+        ],
+        queueData: [
+          { time: '9:00', patients: 20 },
+          { time: '10:00', patients: 30 },
+          { time: '11:00', patients: 45 },
+          { time: '12:00', patients: 40 },
+          { time: '13:00', patients: 35 },
+          { time: '14:00', patients: 25 }
+        ],
+        bedStatus: [
+          { ward: "General Ward", total: 150, occupied: 110, available: 40 },
+          { ward: "ICU", total: 25, occupied: 20, available: 5 },
+          { ward: "Maternity", total: 35, occupied: 25, available: 10 }
+        ]
+      }
     }
   ];
 
-  const initializeMap = (center: [number, number]) => {
+  const initializeMap = () => {
     if (!mapContainer.current) return;
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
-    // Initialize or update map
+    // Initialize map centered on the first hospital
+    const centerHospital = hospitals[0];
     if (!map.current) {
-      map.current = L.map(mapContainer.current).setView([center[0], center[1]], 13);
+      map.current = L.map(mapContainer.current).setView([centerHospital.location[0], centerHospital.location[1]], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map.current);
-    } else {
-      map.current.setView([center[0], center[1]], 13);
     }
 
-    // Add user location marker
-    const userMarker = L.marker([center[0], center[1]], {
-      icon: L.divIcon({
-        className: 'bg-red-500 w-4 h-4 rounded-full border-2 border-white',
-        iconSize: [16, 16],
-      })
-    }).addTo(map.current);
-    markersRef.current.push(userMarker);
-
     // Add hospital markers
-    nearbyHospitals.forEach(hospital => {
+    hospitals.forEach(hospital => {
       const hospitalMarker = L.marker([hospital.location[0], hospital.location[1]], {
         icon: L.divIcon({
-          className: 'bg-blue-500 w-4 h-4 rounded-full border-2 border-white',
+          className: 'bg-blue-500 w-4 h-4 rounded-full border-2 border-white cursor-pointer',
           iconSize: [16, 16],
         })
       })
@@ -87,63 +142,32 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
           <h3 class="font-bold">${hospital.name}</h3>
           <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
           <p>Distance: ${hospital.distance}</p>
+          <button class="px-2 py-1 mt-2 bg-primary text-white rounded text-sm">Select Hospital</button>
         `)
         .addTo(map.current!);
+
+      hospitalMarker.on('popupopen', () => {
+        const popup = hospitalMarker.getPopup();
+        if (popup && popup.getElement()) {
+          const button = popup.getElement()?.querySelector('button');
+          if (button) {
+            button.addEventListener('click', () => {
+              onHospitalSelect(hospital);
+              toast({
+                title: "Hospital Selected",
+                description: `You've selected ${hospital.name}`,
+              });
+            });
+          }
+        }
+      });
+
       markersRef.current.push(hospitalMarker);
     });
   };
 
-  const getCurrentLocation = () => {
-    setIsLoading(true);
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserLocation([latitude, longitude]);
-          
-          initializeMap([latitude, longitude]);
-          
-          // Update hospital distances based on user location
-          const hospitals = nearbyHospitals.map(hospital => ({
-            ...hospital,
-            distance: calculateDistance([latitude, longitude], hospital.location) + " km"
-          }));
-          
-          onLocationSelect(hospitals);
-          
-          toast({
-            title: "Location Found",
-            description: "Showing nearby hospitals with bed availability.",
-          });
-          setIsLoading(false);
-        },
-        (error) => {
-          toast({
-            title: "Error",
-            description: "Could not get your location. Please check your GPS settings.",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-        }
-      );
-    } else {
-      toast({
-        title: "Error",
-        description: "Geolocation is not supported by your browser.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-    }
-  };
-
-  const calculateDistance = (point1: [number, number], point2: [number, number]): string => {
-    // Simple distance calculation (this should be replaced with actual distance calculation)
-    const dx = point1[0] - point2[0];
-    const dy = point1[1] - point2[1];
-    return (Math.sqrt(dx * dx + dy * dy) * 100).toFixed(1);
-  };
-
   useEffect(() => {
+    initializeMap();
     return () => {
       if (map.current) {
         map.current.remove();
@@ -153,17 +177,12 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
 
   return (
     <div className="space-y-4">
-      <Button 
-        onClick={getCurrentLocation} 
-        disabled={isLoading}
-        className="w-full"
-      >
-        <MapPin className="mr-2 h-4 w-4" />
-        {isLoading ? "Getting Location..." : "Check Nearby Hospitals"}
-      </Button>
       <div className="w-full h-[400px] rounded-lg overflow-hidden border border-gray-200">
         <div ref={mapContainer} className="w-full h-full" />
       </div>
+      <p className="text-sm text-muted-foreground text-center">
+        Click on a hospital marker to view details and select it
+      </p>
     </div>
   );
 };
