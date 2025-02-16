@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
 import { MapPin } from 'lucide-react';
@@ -22,27 +22,28 @@ interface LocationMapProps {
 
 const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const map = useRef<L.Map | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const markersRef = useRef<L.Marker[]>([]);
 
   // Sample hospital data - in a real app, this would come from an API
   const nearbyHospitals: Hospital[] = [
     {
       name: "Central Hospital",
-      location: [77.2090, 28.6139],
+      location: [28.6139, 77.2090],
       bedAvailability: { total: 100, available: 25 },
       distance: "2.5 km"
     },
     {
       name: "City Medical Center",
-      location: [77.2000, 28.6200],
+      location: [28.6200, 77.2000],
       bedAvailability: { total: 150, available: 40 },
       distance: "3.1 km"
     },
     {
       name: "Community Health Center",
-      location: [77.2150, 28.6100],
+      location: [28.6100, 77.2150],
       bedAvailability: { total: 80, available: 15 },
       distance: "1.8 km"
     }
@@ -51,36 +52,44 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   const initializeMap = (center: [number, number]) => {
     if (!mapContainer.current) return;
 
-    mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN'; // Replace with your Mapbox token
-    
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: center,
-      zoom: 13
-    });
+    // Clear existing markers
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current = [];
 
-    // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    // Initialize or update map
+    if (!map.current) {
+      map.current = L.map(mapContainer.current).setView([center[0], center[1]], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map.current);
+    } else {
+      map.current.setView([center[0], center[1]], 13);
+    }
 
     // Add user location marker
-    new mapboxgl.Marker({ color: '#FF0000' })
-      .setLngLat(center)
-      .addTo(map.current);
+    const userMarker = L.marker([center[0], center[1]], {
+      icon: L.divIcon({
+        className: 'bg-red-500 w-4 h-4 rounded-full border-2 border-white',
+        iconSize: [16, 16],
+      })
+    }).addTo(map.current);
+    markersRef.current.push(userMarker);
 
     // Add hospital markers
     nearbyHospitals.forEach(hospital => {
-      const popup = new mapboxgl.Popup({ offset: 25 })
-        .setHTML(`
+      const hospitalMarker = L.marker([hospital.location[0], hospital.location[1]], {
+        icon: L.divIcon({
+          className: 'bg-blue-500 w-4 h-4 rounded-full border-2 border-white',
+          iconSize: [16, 16],
+        })
+      })
+        .bindPopup(`
           <h3 class="font-bold">${hospital.name}</h3>
           <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
           <p>Distance: ${hospital.distance}</p>
-        `);
-
-      new mapboxgl.Marker({ color: '#0000FF' })
-        .setLngLat(hospital.location)
-        .setPopup(popup)
+        `)
         .addTo(map.current!);
+      markersRef.current.push(hospitalMarker);
     });
   };
 
@@ -89,19 +98,15 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const { longitude, latitude } = position.coords;
-          setUserLocation([longitude, latitude]);
+          const { latitude, longitude } = position.coords;
+          setUserLocation([latitude, longitude]);
           
-          if (map.current) {
-            map.current.remove();
-          }
-          
-          initializeMap([longitude, latitude]);
+          initializeMap([latitude, longitude]);
           
           // Update hospital distances based on user location
           const hospitals = nearbyHospitals.map(hospital => ({
             ...hospital,
-            distance: calculateDistance([longitude, latitude], hospital.location) + " km"
+            distance: calculateDistance([latitude, longitude], hospital.location) + " km"
           }));
           
           onLocationSelect(hospitals);
@@ -137,6 +142,14 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     const dy = point1[1] - point2[1];
     return (Math.sqrt(dx * dx + dy * dy) * 100).toFixed(1);
   };
+
+  useEffect(() => {
+    return () => {
+      if (map.current) {
+        map.current.remove();
+      }
+    };
+  }, []);
 
   return (
     <div className="space-y-4">
