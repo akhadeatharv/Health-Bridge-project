@@ -4,6 +4,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
+import { MapPin } from 'lucide-react';
 
 interface Hospital {
   name: string;
@@ -22,8 +23,8 @@ interface LocationMapProps {
 const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const marker = useRef<mapboxgl.Marker | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Sample hospital data - in a real app, this would come from an API
   const nearbyHospitals: Hospital[] = [
@@ -47,53 +48,88 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     }
   ];
 
-  useEffect(() => {
+  const initializeMap = (center: [number, number]) => {
     if (!mapContainer.current) return;
 
-    // Initialize map
-    mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN'; // You'll need to replace this with your Mapbox token
+    mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN'; // Replace with your Mapbox token
     
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [77.2090, 28.6139], // Default center (New Delhi)
-      zoom: 12
+      center: center,
+      zoom: 13
     });
 
     // Add navigation controls
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-    // Click handler to set location
-    map.current.on('click', (e) => {
-      const { lng, lat } = e.lngLat;
-      setUserLocation([lng, lat]);
-      
-      // Update marker
-      if (marker.current) {
-        marker.current.remove();
-      }
-      marker.current = new mapboxgl.Marker()
-        .setLngLat([lng, lat])
+    // Add user location marker
+    new mapboxgl.Marker({ color: '#FF0000' })
+      .setLngLat(center)
+      .addTo(map.current);
+
+    // Add hospital markers
+    nearbyHospitals.forEach(hospital => {
+      const popup = new mapboxgl.Popup({ offset: 25 })
+        .setHTML(`
+          <h3 class="font-bold">${hospital.name}</h3>
+          <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
+          <p>Distance: ${hospital.distance}</p>
+        `);
+
+      new mapboxgl.Marker({ color: '#0000FF' })
+        .setLngLat(hospital.location)
+        .setPopup(popup)
         .addTo(map.current!);
-
-      // Show nearby hospitals
-      const hospitals = nearbyHospitals.map(hospital => ({
-        ...hospital,
-        distance: calculateDistance([lng, lat], hospital.location) + " km"
-      }));
-
-      onLocationSelect(hospitals);
-      
-      toast({
-        title: "Location Selected",
-        description: "Showing nearby hospitals with bed availability.",
-      });
     });
+  };
 
-    return () => {
-      map.current?.remove();
-    };
-  }, []);
+  const getCurrentLocation = () => {
+    setIsLoading(true);
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { longitude, latitude } = position.coords;
+          setUserLocation([longitude, latitude]);
+          
+          if (map.current) {
+            map.current.remove();
+          }
+          
+          initializeMap([longitude, latitude]);
+          
+          // Update hospital distances based on user location
+          const hospitals = nearbyHospitals.map(hospital => ({
+            ...hospital,
+            distance: calculateDistance([longitude, latitude], hospital.location) + " km"
+          }));
+          
+          onLocationSelect(hospitals);
+          
+          toast({
+            title: "Location Found",
+            description: "Showing nearby hospitals with bed availability.",
+          });
+          setIsLoading(false);
+        },
+        (error) => {
+          toast({
+            title: "Error",
+            description: "Could not get your location. Please check your GPS settings.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+        }
+      );
+    } else {
+      toast({
+        title: "Error",
+        description: "Geolocation is not supported by your browser.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
 
   const calculateDistance = (point1: [number, number], point2: [number, number]): string => {
     // Simple distance calculation (this should be replaced with actual distance calculation)
@@ -103,8 +139,18 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   };
 
   return (
-    <div className="w-full h-[400px] rounded-lg overflow-hidden border border-gray-200">
-      <div ref={mapContainer} className="w-full h-full" />
+    <div className="space-y-4">
+      <Button 
+        onClick={getCurrentLocation} 
+        disabled={isLoading}
+        className="w-full"
+      >
+        <MapPin className="mr-2 h-4 w-4" />
+        {isLoading ? "Getting Location..." : "Check Nearby Hospitals"}
+      </Button>
+      <div className="w-full h-[400px] rounded-lg overflow-hidden border border-gray-200">
+        <div ref={mapContainer} className="w-full h-full" />
+      </div>
     </div>
   );
 };
