@@ -45,7 +45,6 @@ interface LocationMapProps {
 const LocationMap = ({ onHospitalSelect }: LocationMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const markersRef = useRef<L.Marker[]>([]);
 
   // Sample hospital data with extended information
@@ -132,35 +131,42 @@ const LocationMap = ({ onHospitalSelect }: LocationMapProps) => {
 
     // Add hospital markers
     hospitals.forEach(hospital => {
+      const customIcon = L.divIcon({
+        className: 'bg-blue-500 w-4 h-4 rounded-full border-2 border-white cursor-pointer',
+        iconSize: [16, 16],
+        html: '<div class="w-full h-full bg-blue-500 rounded-full border-2 border-white"></div>'
+      });
+
       const hospitalMarker = L.marker([hospital.location[0], hospital.location[1]], {
-        icon: L.divIcon({
-          className: 'bg-blue-500 w-4 h-4 rounded-full border-2 border-white cursor-pointer',
-          iconSize: [16, 16],
-        })
-      })
-        .bindPopup(`
+        icon: customIcon
+      }).addTo(map.current!);
+
+      // Create a custom popup with a select button
+      const popupContent = document.createElement('div');
+      popupContent.innerHTML = `
+        <div class="p-2">
           <h3 class="font-bold">${hospital.name}</h3>
           <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
           <p>Distance: ${hospital.distance}</p>
-          <button class="px-2 py-1 mt-2 bg-primary text-white rounded text-sm">Select Hospital</button>
-        `)
-        .addTo(map.current!);
+          <button class="mt-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Select Hospital</button>
+        </div>
+      `;
 
-      hospitalMarker.on('popupopen', () => {
-        const popup = hospitalMarker.getPopup();
-        if (popup && popup.getElement()) {
-          const button = popup.getElement()?.querySelector('button');
-          if (button) {
-            button.addEventListener('click', () => {
-              onHospitalSelect(hospital);
-              toast({
-                title: "Hospital Selected",
-                description: `You've selected ${hospital.name}`,
-              });
-            });
-          }
-        }
-      });
+      const popup = L.popup().setContent(popupContent);
+      hospitalMarker.bindPopup(popup);
+
+      // Add click handler for the select button
+      const selectButton = popupContent.querySelector('button');
+      if (selectButton) {
+        selectButton.addEventListener('click', () => {
+          onHospitalSelect(hospital);
+          hospitalMarker.closePopup();
+          toast({
+            title: "Hospital Selected",
+            description: `You've selected ${hospital.name}`,
+          });
+        });
+      }
 
       markersRef.current.push(hospitalMarker);
     });
