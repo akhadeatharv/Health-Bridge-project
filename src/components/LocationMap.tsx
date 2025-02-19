@@ -5,6 +5,13 @@ import 'leaflet/dist/leaflet.css';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
 import { MapPin } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface Hospital {
   name: string;
@@ -26,9 +33,11 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const markersRef = useRef<L.Marker[]>([]);
+  const [nearbyHospitals, setNearbyHospitals] = useState<Hospital[]>([]);
+  const [selectedHospital, setSelectedHospital] = useState<string | undefined>();
 
   // Sample hospital data - in a real app, this would come from an API
-  const nearbyHospitals: Hospital[] = [
+  const nearbyHospitals_: Hospital[] = [
     {
       name: "Central Hospital",
       location: [28.6139, 77.2090],
@@ -76,10 +85,12 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     markersRef.current.push(userMarker);
 
     // Add hospital markers
-    nearbyHospitals.forEach(hospital => {
+    nearbyHospitals_.forEach(hospital => {
       const hospitalMarker = L.marker([hospital.location[0], hospital.location[1]], {
         icon: L.divIcon({
-          className: 'bg-blue-500 w-4 h-4 rounded-full border-2 border-white',
+          className: `bg-blue-500 w-4 h-4 rounded-full border-2 border-white ${
+            selectedHospital === hospital.name ? 'ring-2 ring-blue-600' : ''
+          }`,
           iconSize: [16, 16],
         })
       })
@@ -91,6 +102,8 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
         .addTo(map.current!);
       markersRef.current.push(hospitalMarker);
     });
+
+    setNearbyHospitals(nearbyHospitals_);
   };
 
   const getCurrentLocation = () => {
@@ -104,7 +117,7 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
           initializeMap([latitude, longitude]);
           
           // Update hospital distances based on user location
-          const hospitals = nearbyHospitals.map(hospital => ({
+          const hospitals = nearbyHospitals_.map(hospital => ({
             ...hospital,
             distance: calculateDistance([latitude, longitude], hospital.location) + " km"
           }));
@@ -143,6 +156,18 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     return (Math.sqrt(dx * dx + dy * dy) * 100).toFixed(1);
   };
 
+  const handleHospitalSelect = (hospitalName: string) => {
+    setSelectedHospital(hospitalName);
+    const hospital = nearbyHospitals.find(h => h.name === hospitalName);
+    if (hospital && map.current) {
+      map.current.setView(hospital.location, 14);
+      toast({
+        title: "Hospital Selected",
+        description: `Selected ${hospital.name}`,
+      });
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (map.current) {
@@ -161,6 +186,22 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
         <MapPin className="mr-2 h-4 w-4" />
         {isLoading ? "Getting Location..." : "Check Nearby Hospitals"}
       </Button>
+
+      {nearbyHospitals.length > 0 && (
+        <Select onValueChange={handleHospitalSelect} value={selectedHospital}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select a hospital" />
+          </SelectTrigger>
+          <SelectContent>
+            {nearbyHospitals.map((hospital) => (
+              <SelectItem key={hospital.name} value={hospital.name}>
+                {hospital.name} - {hospital.distance} ({hospital.bedAvailability.available} beds)
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
       <div className="w-full h-[400px] rounded-lg overflow-hidden border border-gray-200">
         <div ref={mapContainer} className="w-full h-full" />
       </div>
