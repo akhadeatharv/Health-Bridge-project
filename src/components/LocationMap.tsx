@@ -65,43 +65,48 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
-    // Initialize or update map
-    if (!map.current) {
-      map.current = L.map(mapContainer.current).setView([center[0], center[1]], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(map.current);
+    // If map already exists, just update the view
+    if (map.current) {
+      map.current.setView(center, 13);
     } else {
-      map.current.setView([center[0], center[1]], 13);
+      // Create new map instance
+      requestAnimationFrame(() => {
+        if (!mapContainer.current) return;
+        
+        map.current = L.map(mapContainer.current).setView(center, 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map.current);
+
+        // Add user location marker
+        const userMarker = L.marker(center, {
+          icon: L.divIcon({
+            className: 'bg-red-500 w-4 h-4 rounded-full border-2 border-white',
+            iconSize: [16, 16],
+          })
+        }).addTo(map.current);
+        markersRef.current.push(userMarker);
+
+        // Add hospital markers
+        nearbyHospitals_.forEach(hospital => {
+          const hospitalMarker = L.marker(hospital.location, {
+            icon: L.divIcon({
+              className: `bg-blue-500 w-4 h-4 rounded-full border-2 border-white ${
+                selectedHospital === hospital.name ? 'ring-2 ring-blue-600' : ''
+              }`,
+              iconSize: [16, 16],
+            })
+          })
+            .bindPopup(`
+              <h3 class="font-bold">${hospital.name}</h3>
+              <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
+              <p>Distance: ${hospital.distance}</p>
+            `)
+            .addTo(map.current!);
+          markersRef.current.push(hospitalMarker);
+        });
+      });
     }
-
-    // Add user location marker
-    const userMarker = L.marker([center[0], center[1]], {
-      icon: L.divIcon({
-        className: 'bg-red-500 w-4 h-4 rounded-full border-2 border-white',
-        iconSize: [16, 16],
-      })
-    }).addTo(map.current);
-    markersRef.current.push(userMarker);
-
-    // Add hospital markers
-    nearbyHospitals_.forEach(hospital => {
-      const hospitalMarker = L.marker([hospital.location[0], hospital.location[1]], {
-        icon: L.divIcon({
-          className: `bg-blue-500 w-4 h-4 rounded-full border-2 border-white ${
-            selectedHospital === hospital.name ? 'ring-2 ring-blue-600' : ''
-          }`,
-          iconSize: [16, 16],
-        })
-      })
-        .bindPopup(`
-          <h3 class="font-bold">${hospital.name}</h3>
-          <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
-          <p>Distance: ${hospital.distance}</p>
-        `)
-        .addTo(map.current!);
-      markersRef.current.push(hospitalMarker);
-    });
 
     setNearbyHospitals(nearbyHospitals_);
   };
@@ -150,7 +155,6 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   };
 
   const calculateDistance = (point1: [number, number], point2: [number, number]): string => {
-    // Simple distance calculation (this should be replaced with actual distance calculation)
     const dx = point1[0] - point2[0];
     const dy = point1[1] - point2[1];
     return (Math.sqrt(dx * dx + dy * dy) * 100).toFixed(1);
@@ -168,11 +172,15 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     }
   };
 
+  // Cleanup effect
   useEffect(() => {
     return () => {
       if (map.current) {
         map.current.remove();
+        map.current = null;
       }
+      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current = [];
     };
   }, []);
 
