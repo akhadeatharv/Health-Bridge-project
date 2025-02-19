@@ -187,6 +187,10 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
         {isLoading ? "Getting Location..." : "Check Nearby Hospitals"}
       </Button>
 
+      <div className="w-full h-[400px] rounded-lg overflow-hidden border border-gray-200">
+        <div ref={mapContainer} className="w-full h-full" />
+      </div>
+
       {nearbyHospitals.length > 0 && (
         <Select onValueChange={handleHospitalSelect} value={selectedHospital}>
           <SelectTrigger>
@@ -201,10 +205,6 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
           </SelectContent>
         </Select>
       )}
-
-      <div className="w-full h-[400px] rounded-lg overflow-hidden border border-gray-200">
-        <div ref={mapContainer} className="w-full h-full" />
-      </div>
     </div>
   );
 };
