@@ -1,38 +1,31 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Sidebar from "./components/Sidebar";
+
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import Appointments from "./pages/Appointments";
 import Payments from "./pages/Payments";
 import NotFound from "./pages/NotFound";
+import Sidebar from "./components/Sidebar";
+import HospitalDetails from "./pages/HospitalDetails";
 
-const queryClient = new QueryClient();
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/patients" element={<Patients />} />
-              <Route path="/appointments" element={<Appointments />} />
-              <Route path="/payments" element={<Payments />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </main>
-        </div>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+function App() {
+  return (
+    <Router>
+      <div className="flex h-screen bg-gray-100">
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/patients" element={<Patients />} />
+            <Route path="/appointments" element={<Appointments />} />
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/hospital-details" element={<HospitalDetails />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
+  );
+}
 
 export default App;
