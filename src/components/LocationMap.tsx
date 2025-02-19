@@ -201,12 +201,16 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
 
       {nearbyHospitals.length > 0 && (
         <Select onValueChange={handleHospitalSelect} value={selectedHospital}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Select a hospital" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[1000] bg-white">
             {nearbyHospitals.map((hospital) => (
-              <SelectItem key={hospital.name} value={hospital.name}>
+              <SelectItem 
+                key={hospital.name} 
+                value={hospital.name}
+                className="hover:bg-gray-100"
+              >
                 {hospital.name} - {hospital.distance} ({hospital.bedAvailability.available} beds)
               </SelectItem>
             ))}
