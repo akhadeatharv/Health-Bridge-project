@@ -14,14 +14,6 @@ interface Hospital {
     available: number;
   };
   distance: string;
-  totalPatients?: number;
-  averageWaitTime?: string;
-  opdQueueTrend?: number[];
-  departments?: Array<{
-    name: string;
-    nextAvailable: string;
-    queueLength: number;
-  }>;
 }
 
 const Dashboard = () => {
@@ -60,30 +52,11 @@ const Dashboard = () => {
   }];
 
   const handleLocationSelect = (hospitals: Hospital[]) => {
-    const hospitalsWithExtendedData = hospitals.map(hospital => ({
-      ...hospital,
-      totalPatients: Math.floor(Math.random() * 200) + 100,
-      averageWaitTime: `${Math.floor(Math.random() * 60) + 15} mins`,
-      opdQueueTrend: [
-        Math.floor(Math.random() * 30) + 10,
-        Math.floor(Math.random() * 30) + 10,
-        Math.floor(Math.random() * 30) + 10
-      ],
-      departments: [
-        { name: "Emergency", nextAvailable: "Immediate", queueLength: Math.floor(Math.random() * 10) + 1 },
-        { name: "General Medicine", nextAvailable: `${Math.floor(Math.random() * 60)} mins`, queueLength: Math.floor(Math.random() * 20) + 5 },
-        { name: "Pediatrics", nextAvailable: `${Math.floor(Math.random() * 2) + 1} hours`, queueLength: Math.floor(Math.random() * 15) + 3 }
-      ]
-    }));
-    setNearbyHospitals(hospitalsWithExtendedData);
+    setNearbyHospitals(hospitals);
   };
 
   const handleHospitalClick = (hospital: Hospital) => {
-    console.log("Navigating to hospital details with data:", hospital);
-    navigate('/hospital-details', { 
-      state: { hospital },
-      replace: false
-    });
+    navigate('/hospital-details', { state: { hospital } });
   };
 
   return (
@@ -110,7 +83,7 @@ const Dashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {nearbyHospitals.map((hospital) => (
+                  {nearbyHospitals.map(hospital => (
                     <TableRow 
                       key={hospital.name}
                       className="cursor-pointer hover:bg-gray-50"
@@ -187,4 +160,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
