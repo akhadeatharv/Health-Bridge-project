@@ -28,13 +28,14 @@ const HospitalDetails = () => {
   const navigate = useNavigate();
   const hospital = location.state?.hospital as Hospital;
 
+  console.log("Hospital details received:", hospital);
+
   if (!hospital) {
-    console.log("No hospital data in location state:", location.state);
     return (
       <div className="p-8">
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">No Hospital Selected</h2>
-          <Button onClick={() => navigate('/')} variant="outline">
+          <Button onClick={() => navigate('/', { replace: true })} variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Return to Dashboard
           </Button>
@@ -52,7 +53,7 @@ const HospitalDetails = () => {
   return (
     <div className="p-8">
       <Button 
-        onClick={() => navigate('/')} 
+        onClick={() => navigate('/', { replace: true })} 
         variant="outline"
         className="mb-6"
       >
@@ -159,3 +160,4 @@ const HospitalDetails = () => {
 };
 
 export default HospitalDetails;
+

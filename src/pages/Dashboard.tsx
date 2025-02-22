@@ -60,7 +60,6 @@ const Dashboard = () => {
   }];
 
   const handleLocationSelect = (hospitals: Hospital[]) => {
-    // Add mock data for demonstration
     const hospitalsWithExtendedData = hospitals.map(hospital => ({
       ...hospital,
       totalPatients: Math.floor(Math.random() * 200) + 100,
@@ -82,7 +81,8 @@ const Dashboard = () => {
   const handleHospitalClick = (hospital: Hospital) => {
     console.log("Navigating to hospital details with data:", hospital);
     navigate('/hospital-details', { 
-      state: { hospital }
+      state: { hospital },
+      replace: false
     });
   };
 
@@ -110,7 +110,7 @@ const Dashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {nearbyHospitals.map(hospital => (
+                  {nearbyHospitals.map((hospital) => (
                     <TableRow 
                       key={hospital.name}
                       className="cursor-pointer hover:bg-gray-50"
@@ -187,3 +187,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
