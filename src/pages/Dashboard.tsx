@@ -56,7 +56,9 @@ const Dashboard = () => {
   };
 
   const handleHospitalClick = (hospital: Hospital) => {
-    navigate('/hospital-details', { state: { hospital } });
+    navigate('/hospital-details', { 
+      state: { hospital }
+    });
   };
 
   return (
