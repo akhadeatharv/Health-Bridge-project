@@ -2,7 +2,8 @@
 import { Card } from "@/components/ui/card";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, MapPin, BedDouble } from "lucide-react";
+import { ArrowLeft, Building2, MapPin, BedDouble, Clock, Users, LineChart } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Hospital {
   name: string;
@@ -12,6 +13,14 @@ interface Hospital {
     available: number;
   };
   distance: string;
+  totalPatients?: number;
+  averageWaitTime?: string;
+  opdQueueTrend?: number[];
+  departments?: Array<{
+    name: string;
+    nextAvailable: string;
+    queueLength: number;
+  }>;
 }
 
 const HospitalDetails = () => {
@@ -20,6 +29,7 @@ const HospitalDetails = () => {
   const hospital = location.state?.hospital as Hospital;
 
   if (!hospital) {
+    console.log("No hospital data in location state:", location.state);
     return (
       <div className="p-8">
         <Card className="p-6">
@@ -32,6 +42,12 @@ const HospitalDetails = () => {
       </div>
     );
   }
+
+  const defaultDepartments = [
+    { name: "Emergency", nextAvailable: "Immediate", queueLength: 5 },
+    { name: "General Medicine", nextAvailable: "30 mins", queueLength: 15 },
+    { name: "Pediatrics", nextAvailable: "1 hour", queueLength: 8 }
+  ];
 
   return (
     <div className="p-8">
@@ -59,6 +75,26 @@ const HospitalDetails = () => {
 
         <Card className="p-6">
           <div className="flex items-center space-x-4">
+            <Users className="h-8 w-8 text-purple-500" />
+            <div>
+              <h3 className="text-lg font-semibold">Total Patients</h3>
+              <p className="text-gray-600">{hospital.totalPatients || "150"}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <Clock className="h-8 w-8 text-yellow-500" />
+            <div>
+              <h3 className="text-lg font-semibold">Average Wait Time</h3>
+              <p className="text-gray-600">{hospital.averageWaitTime || "45 mins"}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
             <MapPin className="h-8 w-8 text-red-500" />
             <div>
               <h3 className="text-lg font-semibold">Distance</h3>
@@ -78,7 +114,39 @@ const HospitalDetails = () => {
             </div>
           </div>
         </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <LineChart className="h-8 w-8 text-indigo-500" />
+            <div>
+              <h3 className="text-lg font-semibold">OPD Queue Trend</h3>
+              <p className="text-gray-600">Currently {hospital.opdQueueTrend?.[0] || "25"} patients</p>
+            </div>
+          </div>
+        </Card>
       </div>
+
+      <Card className="mt-6 p-6">
+        <h2 className="text-xl font-semibold mb-4">Department Status</h2>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Department</TableHead>
+              <TableHead>Next Available</TableHead>
+              <TableHead>Queue Length</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(hospital.departments || defaultDepartments).map((dept) => (
+              <TableRow key={dept.name}>
+                <TableCell className="font-medium">{dept.name}</TableCell>
+                <TableCell>{dept.nextAvailable}</TableCell>
+                <TableCell>{dept.queueLength} patients</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
 
       <Card className="mt-6 p-6">
         <h2 className="text-xl font-semibold mb-4">Location Details</h2>
