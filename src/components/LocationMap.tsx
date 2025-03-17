@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
-import { MapPin } from 'lucide-react';
+import { MapPin, Locate } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -12,6 +12,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { Alert, AlertDescription } from './ui/alert';
+
+// Fixing the Leaflet icon issue
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+// Fix Leaflet's default icon issues
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
 
 interface Hospital {
   name: string;
@@ -32,6 +46,7 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   const map = useRef<L.Map | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const [nearbyHospitals, setNearbyHospitals] = useState<Hospital[]>([]);
   const [selectedHospital, setSelectedHospital] = useState<string | undefined>();
@@ -59,59 +74,61 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   ];
 
   const initializeMap = (center: [number, number]) => {
+    console.log("Initializing map with center:", center);
+    
     // Clear any existing map instance first
     if (map.current) {
       map.current.remove();
       map.current = null;
     }
     
-    if (!mapContainer.current) return;
+    if (!mapContainer.current) {
+      console.error("Map container ref is null");
+      return;
+    }
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
-    // Create new map instance
-    map.current = L.map(mapContainer.current).setView(center, 13);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map.current);
+    try {
+      // Create new map instance
+      map.current = L.map(mapContainer.current).setView(center, 13);
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map.current);
 
-    // Add user location marker
-    const userMarker = L.marker(center, {
-      icon: L.divIcon({
-        className: 'bg-red-500 w-4 h-4 rounded-full border-2 border-white',
-        iconSize: [16, 16],
-      })
-    }).addTo(map.current);
-    markersRef.current.push(userMarker);
+      console.log("Map initialized successfully");
 
-    // Add hospital markers
-    nearbyHospitals_.forEach(hospital => {
-      const hospitalMarker = L.marker(hospital.location, {
-        icon: L.divIcon({
-          className: `bg-blue-500 w-4 h-4 rounded-full border-2 border-white ${
-            selectedHospital === hospital.name ? 'ring-2 ring-blue-600' : ''
-          }`,
-          iconSize: [16, 16],
-        })
-      })
-        .bindPopup(`
-          <h3 class="font-bold">${hospital.name}</h3>
-          <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
-          <p>Distance: ${hospital.distance}</p>
-        `)
-        .addTo(map.current);
-      markersRef.current.push(hospitalMarker);
-    });
+      // Add user location marker
+      const userMarker = L.marker(center).addTo(map.current);
+      userMarker.bindPopup("You are here").openPopup();
+      markersRef.current.push(userMarker);
 
-    setNearbyHospitals(nearbyHospitals_);
+      // Add hospital markers
+      nearbyHospitals_.forEach(hospital => {
+        const hospitalMarker = L.marker(hospital.location)
+          .bindPopup(`
+            <h3 class="font-bold">${hospital.name}</h3>
+            <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
+            <p>Distance: ${hospital.distance}</p>
+          `)
+          .addTo(map.current!);
+        markersRef.current.push(hospitalMarker);
+      });
+
+      setNearbyHospitals(nearbyHospitals_);
+    } catch (err) {
+      console.error("Error initializing map:", err);
+      setError("Failed to initialize map. Please try again.");
+    }
   };
 
   const getCurrentLocation = () => {
     console.log("Get current location clicked");
     setIsLoading(true);
+    setError(null);
     
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -140,6 +157,7 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
         },
         (error) => {
           console.error("Geolocation error:", error);
+          setError("Could not get your location. Please check your GPS settings.");
           toast({
             title: "Error",
             description: "Could not get your location. Please check your GPS settings.",
@@ -155,12 +173,13 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
         },
         {
           enableHighAccuracy: true,
-          timeout: 5000,
+          timeout: 10000,
           maximumAge: 0
         }
       );
     } else {
       console.error("Geolocation not supported");
+      setError("Geolocation is not supported by your browser.");
       toast({
         title: "Error",
         description: "Geolocation is not supported by your browser.",
@@ -177,9 +196,17 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   };
 
   const calculateDistance = (point1: [number, number], point2: [number, number]): string => {
-    const dx = point1[0] - point2[0];
-    const dy = point1[1] - point2[1];
-    return (Math.sqrt(dx * dx + dy * dy) * 100).toFixed(1);
+    // Simple distance calculation (this is an approximation)
+    const R = 6371; // Earth's radius in km
+    const dLat = (point2[0] - point1[0]) * Math.PI / 180;
+    const dLon = (point2[1] - point1[1]) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(point1[0] * Math.PI / 180) * Math.cos(point2[0] * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+    return distance.toFixed(1);
   };
 
   const handleHospitalSelect = (hospitalName: string) => {
@@ -187,6 +214,15 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     const hospital = nearbyHospitals.find(h => h.name === hospitalName);
     if (hospital && map.current) {
       map.current.setView(hospital.location, 14);
+      
+      // Find and open the popup for this hospital
+      markersRef.current.forEach(marker => {
+        const popupContent = marker.getPopup()?.getContent();
+        if (popupContent && popupContent.includes(hospital.name)) {
+          marker.openPopup();
+        }
+      });
+      
       toast({
         title: "Hospital Selected",
         description: `Selected ${hospital.name}`,
@@ -213,9 +249,15 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
         disabled={isLoading}
         className="w-full"
       >
-        <MapPin className="mr-2 h-4 w-4" />
+        <Locate className="mr-2 h-4 w-4" />
         {isLoading ? "Getting Location..." : "Check Nearby Hospitals"}
       </Button>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="w-full h-[400px] rounded-lg overflow-hidden border border-gray-200">
         <div ref={mapContainer} className="w-full h-full" />
