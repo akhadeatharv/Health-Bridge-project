@@ -59,67 +59,66 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   ];
 
   const initializeMap = (center: [number, number]) => {
+    // Clear any existing map instance first
+    if (map.current) {
+      map.current.remove();
+      map.current = null;
+    }
+    
     if (!mapContainer.current) return;
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
-    // If map already exists, just update the view
-    if (map.current) {
-      map.current.setView(center, 13);
-    } else {
-      // Create new map instance
-      requestAnimationFrame(() => {
-        if (!mapContainer.current) return;
-        
-        map.current = L.map(mapContainer.current).setView(center, 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(map.current);
+    // Create new map instance
+    map.current = L.map(mapContainer.current).setView(center, 13);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map.current);
 
-        // Add user location marker
-        const userMarker = L.marker(center, {
-          icon: L.divIcon({
-            className: 'bg-red-500 w-4 h-4 rounded-full border-2 border-white',
-            iconSize: [16, 16],
-          })
-        }).addTo(map.current);
-        markersRef.current.push(userMarker);
+    // Add user location marker
+    const userMarker = L.marker(center, {
+      icon: L.divIcon({
+        className: 'bg-red-500 w-4 h-4 rounded-full border-2 border-white',
+        iconSize: [16, 16],
+      })
+    }).addTo(map.current);
+    markersRef.current.push(userMarker);
 
-        // Add hospital markers
-        nearbyHospitals_.forEach(hospital => {
-          const hospitalMarker = L.marker(hospital.location, {
-            icon: L.divIcon({
-              className: `bg-blue-500 w-4 h-4 rounded-full border-2 border-white ${
-                selectedHospital === hospital.name ? 'ring-2 ring-blue-600' : ''
-              }`,
-              iconSize: [16, 16],
-            })
-          })
-            .bindPopup(`
-              <h3 class="font-bold">${hospital.name}</h3>
-              <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
-              <p>Distance: ${hospital.distance}</p>
-            `)
-            .addTo(map.current!);
-          markersRef.current.push(hospitalMarker);
-        });
-      });
-    }
+    // Add hospital markers
+    nearbyHospitals_.forEach(hospital => {
+      const hospitalMarker = L.marker(hospital.location, {
+        icon: L.divIcon({
+          className: `bg-blue-500 w-4 h-4 rounded-full border-2 border-white ${
+            selectedHospital === hospital.name ? 'ring-2 ring-blue-600' : ''
+          }`,
+          iconSize: [16, 16],
+        })
+      })
+        .bindPopup(`
+          <h3 class="font-bold">${hospital.name}</h3>
+          <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
+          <p>Distance: ${hospital.distance}</p>
+        `)
+        .addTo(map.current);
+      markersRef.current.push(hospitalMarker);
+    });
 
     setNearbyHospitals(nearbyHospitals_);
   };
 
   const getCurrentLocation = () => {
+    console.log("Get current location clicked");
     setIsLoading(true);
+    
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
+          console.log("Location received:", latitude, longitude);
           setUserLocation([latitude, longitude]);
-          
-          initializeMap([latitude, longitude]);
           
           // Update hospital distances based on user location
           const hospitals = nearbyHospitals_.map(hospital => ({
@@ -127,6 +126,10 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
             distance: calculateDistance([latitude, longitude], hospital.location) + " km"
           }));
           
+          // Initialize the map after we have the location
+          initializeMap([latitude, longitude]);
+          
+          // Pass the hospitals to the parent component
           onLocationSelect(hospitals);
           
           toast({
@@ -136,21 +139,40 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
           setIsLoading(false);
         },
         (error) => {
+          console.error("Geolocation error:", error);
           toast({
             title: "Error",
             description: "Could not get your location. Please check your GPS settings.",
             variant: "destructive",
           });
           setIsLoading(false);
+          
+          // Fallback to default location
+          const defaultLocation: [number, number] = [28.6139, 77.2090]; // Default to New Delhi
+          setUserLocation(defaultLocation);
+          initializeMap(defaultLocation);
+          onLocationSelect(nearbyHospitals_);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
         }
       );
     } else {
+      console.error("Geolocation not supported");
       toast({
         title: "Error",
         description: "Geolocation is not supported by your browser.",
         variant: "destructive",
       });
       setIsLoading(false);
+      
+      // Fallback to default location
+      const defaultLocation: [number, number] = [28.6139, 77.2090]; // Default to New Delhi
+      setUserLocation(defaultLocation);
+      initializeMap(defaultLocation);
+      onLocationSelect(nearbyHospitals_);
     }
   };
 
