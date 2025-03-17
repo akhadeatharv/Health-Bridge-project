@@ -1,18 +1,9 @@
 
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Card } from "@/components/ui/card";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ChevronLeft, MapPin, Clock, Users, Bed } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from 'recharts';
 
 interface Hospital {
   name: string;
@@ -22,147 +13,152 @@ interface Hospital {
     available: number;
   };
   distance: string;
+  totalPatients?: number;
+  waitTime?: string;
+  opdQueue?: number;
+  departments?: Array<{
+    name: string;
+    doctors: number;
+    patients: number;
+  }>;
 }
 
 const HospitalDetails = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const hospital = location.state?.hospital as Hospital;
+  const hospital = location.state?.hospital as Hospital | undefined;
+
+  // Debug
+  console.log("Hospital data in details page:", hospital);
+
+  const handleBackClick = () => {
+    navigate('/', { replace: true });
+  };
 
   if (!hospital) {
     return (
-      <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Hospital not found</h1>
-        <Button onClick={() => navigate('/')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
-        </Button>
+      <div className="flex flex-col items-center justify-center h-screen">
+        <h2 className="text-2xl font-bold mb-4">No hospital selected</h2>
+        <Button onClick={handleBackClick}>Return to Dashboard</Button>
       </div>
     );
   }
 
-  // Sample data - in a real app, this would be fetched for the specific hospital
-  const queueData = [
-    { time: '9:00', patients: 15 },
-    { time: '10:00', patients: 25 },
-    { time: '11:00', patients: 42 },
-    { time: '12:00', patients: 35 },
-    { time: '13:00', patients: 28 },
-    { time: '14:00', patients: 30 },
-  ];
-
-  const departments = [
-    { name: "Cardiology", nextAvailable: "2 days", queueLength: 15 },
-    { name: "Orthopedics", nextAvailable: "3 days", queueLength: 12 },
-    { name: "Pediatrics", nextAvailable: "1 day", queueLength: 8 },
-  ];
-
-  const bedStatus = [
-    { ward: "General Ward", total: 100, occupied: 75, available: 25 },
-    { ward: "ICU", total: 20, occupied: 18, available: 2 },
-    { ward: "Maternity", total: 30, occupied: 22, available: 8 },
-  ];
-
   return (
     <div className="p-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Button variant="outline" onClick={() => navigate('/')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
+      <div className="flex items-center mb-6">
+        <Button 
+          variant="outline" 
+          size="icon" 
+          className="mr-4" 
+          onClick={handleBackClick}
+        >
+          <ChevronLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-3xl font-bold">{hospital.name}</h1>
-          <p className="text-gray-500">Distance: {hospital.distance}</p>
-        </div>
+        <h1 className="text-3xl font-bold">{hospital.name}</h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card className="p-6">
-          <h3 className="text-sm text-gray-600">Total Patient Count</h3>
-          <p className="text-2xl font-semibold mt-2">248</p>
-          <p className="text-sm text-green-500">+12% from last week</p>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              <MapPin className="h-5 w-5 mr-2 text-blue-500" />
+              Location
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">
+              Coordinates: {hospital.location[0].toFixed(4)}, {hospital.location[1].toFixed(4)}
+            </p>
+            <p className="font-medium mt-1">Distance: {hospital.distance}</p>
+          </CardContent>
         </Card>
 
-        <Card className="p-6">
-          <h3 className="text-sm text-gray-600">Bed Availability</h3>
-          <p className="text-2xl font-semibold mt-2">{hospital.bedAvailability.available}/{hospital.bedAvailability.total}</p>
-          <p className="text-sm text-red-500">-5% from last week</p>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              <Bed className="h-5 w-5 mr-2 text-green-500" />
+              Bed Availability
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <span>Total Beds:</span>
+              <span className="font-medium">{hospital.bedAvailability.total}</span>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <span>Available Beds:</span>
+              <span className={`font-medium px-2 py-1 rounded-full text-xs ${
+                hospital.bedAvailability.available > 10 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+              }`}>
+                {hospital.bedAvailability.available}
+              </span>
+            </div>
+          </CardContent>
         </Card>
 
-        <Card className="p-6">
-          <h3 className="text-sm text-gray-600">Average Wait Time</h3>
-          <p className="text-2xl font-semibold mt-2">28 min</p>
-          <p className="text-sm text-green-500">-15% from last week</p>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              <Clock className="h-5 w-5 mr-2 text-orange-500" />
+              Wait Time
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <span>Current Wait:</span>
+              <span className="font-medium">{hospital.waitTime || "Unknown"}</span>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <span>OPD Queue:</span>
+              <span className="font-medium">{hospital.opdQueue || "Unknown"} patients</span>
+            </div>
+          </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">OPD Queue Trend</h2>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={queueData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="patients" 
-                  stroke="hsl(var(--primary))" 
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+      {hospital.totalPatients && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Users className="h-5 w-5 mr-2 text-purple-500" />
+              Patient Statistics
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{hospital.totalPatients}</p>
+            <p className="text-gray-500">Total patients currently registered</p>
+          </CardContent>
         </Card>
+      )}
 
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Department Queue Status</h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Department</TableHead>
-                <TableHead>Next Available</TableHead>
-                <TableHead>Queue Length</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {departments.map(dept => (
-                <TableRow key={dept.name}>
-                  <TableCell className="font-medium">{dept.name}</TableCell>
-                  <TableCell>{dept.nextAvailable}</TableCell>
-                  <TableCell>{dept.queueLength} patients</TableCell>
+      {hospital.departments && hospital.departments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Department Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Doctors Available</TableHead>
+                  <TableHead>Patients Waiting</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {hospital.departments.map((dept, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">{dept.name}</TableCell>
+                    <TableCell>{dept.doctors}</TableCell>
+                    <TableCell>{dept.patients}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
         </Card>
-
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Bed Availability</h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ward</TableHead>
-                <TableHead>Total Beds</TableHead>
-                <TableHead>Occupied</TableHead>
-                <TableHead>Available</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bedStatus.map(ward => (
-                <TableRow key={ward.ward}>
-                  <TableCell className="font-medium">{ward.ward}</TableCell>
-                  <TableCell>{ward.total}</TableCell>
-                  <TableCell>{ward.occupied}</TableCell>
-                  <TableCell>{ward.available}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
+      )}
     </div>
   );
 };

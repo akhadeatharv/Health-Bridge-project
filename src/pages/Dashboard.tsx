@@ -14,6 +14,14 @@ interface Hospital {
     available: number;
   };
   distance: string;
+  totalPatients?: number;
+  waitTime?: string;
+  opdQueue?: number;
+  departments?: Array<{
+    name: string;
+    doctors: number;
+    patients: number;
+  }>;
 }
 
 const Dashboard = () => {
@@ -52,11 +60,40 @@ const Dashboard = () => {
   }];
 
   const handleLocationSelect = (hospitals: Hospital[]) => {
-    setNearbyHospitals(hospitals);
+    // Enhance hospitals with additional mock data
+    const enhancedHospitals = hospitals.map(hospital => ({
+      ...hospital,
+      totalPatients: Math.floor(Math.random() * 200) + 100,
+      waitTime: `${Math.floor(Math.random() * 60) + 15} minutes`,
+      opdQueue: Math.floor(Math.random() * 30) + 5,
+      departments: [
+        {
+          name: "Emergency",
+          doctors: Math.floor(Math.random() * 5) + 2,
+          patients: Math.floor(Math.random() * 15) + 3
+        },
+        {
+          name: "General Medicine",
+          doctors: Math.floor(Math.random() * 7) + 3,
+          patients: Math.floor(Math.random() * 20) + 5
+        },
+        {
+          name: "Pediatrics",
+          doctors: Math.floor(Math.random() * 4) + 1,
+          patients: Math.floor(Math.random() * 10) + 2
+        }
+      ]
+    }));
+    
+    setNearbyHospitals(enhancedHospitals);
   };
 
   const handleHospitalClick = (hospital: Hospital) => {
-    navigate('/hospital-details', { state: { hospital } });
+    console.log("Selected hospital:", hospital);
+    navigate('/hospital-details', { 
+      state: { hospital },
+      replace: true 
+    });
   };
 
   return (
