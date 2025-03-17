@@ -131,36 +131,13 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     setError(null);
     
     if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          console.log("Location received:", latitude, longitude);
-          setUserLocation([latitude, longitude]);
-          
-          // Update hospital distances based on user location
-          const hospitals = nearbyHospitals_.map(hospital => ({
-            ...hospital,
-            distance: calculateDistance([latitude, longitude], hospital.location) + " km"
-          }));
-          
-          // Initialize the map after we have the location
-          initializeMap([latitude, longitude]);
-          
-          // Pass the hospitals to the parent component
-          onLocationSelect(hospitals);
-          
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'denied') {
+          console.error("Geolocation permission denied");
+          setError("Location permission denied. Please enable GPS in your browser settings.");
           toast({
-            title: "Location Found",
-            description: "Showing nearby hospitals with bed availability.",
-          });
-          setIsLoading(false);
-        },
-        (error) => {
-          console.error("Geolocation error:", error);
-          setError("Could not get your location. Please check your GPS settings.");
-          toast({
-            title: "Error",
-            description: "Could not get your location. Please check your GPS settings.",
+            title: "Permission Denied",
+            description: "Please enable location services for this site in your browser settings.",
             variant: "destructive",
           });
           setIsLoading(false);
@@ -170,13 +147,73 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
           setUserLocation(defaultLocation);
           initializeMap(defaultLocation);
           onLocationSelect(nearbyHospitals_);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+          return;
         }
-      );
+        
+        // Proceed with getting the location
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            console.log("Location received:", latitude, longitude);
+            setUserLocation([latitude, longitude]);
+            
+            // Update hospital distances based on user location
+            const hospitals = nearbyHospitals_.map(hospital => ({
+              ...hospital,
+              distance: calculateDistance([latitude, longitude], hospital.location) + " km"
+            }));
+            
+            // Initialize the map after we have the location
+            initializeMap([latitude, longitude]);
+            
+            // Pass the hospitals to the parent component
+            onLocationSelect(hospitals);
+            
+            toast({
+              title: "Location Found",
+              description: "Showing nearby hospitals with bed availability.",
+            });
+            setIsLoading(false);
+          },
+          (error) => {
+            console.error("Geolocation error:", error);
+            let errorMessage = "Could not get your location. ";
+            
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                errorMessage += "Location permission denied. Please enable GPS in your browser settings.";
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMessage += "Location information is unavailable.";
+                break;
+              case error.TIMEOUT:
+                errorMessage += "Request timed out. Please try again.";
+                break;
+              default:
+                errorMessage += "Please check your GPS settings.";
+            }
+            
+            setError(errorMessage);
+            toast({
+              title: "Error",
+              description: errorMessage,
+              variant: "destructive",
+            });
+            setIsLoading(false);
+            
+            // Fallback to default location
+            const defaultLocation: [number, number] = [28.6139, 77.2090]; // Default to New Delhi
+            setUserLocation(defaultLocation);
+            initializeMap(defaultLocation);
+            onLocationSelect(nearbyHospitals_);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
+      });
     } else {
       console.error("Geolocation not supported");
       setError("Geolocation is not supported by your browser.");
@@ -217,9 +254,12 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
       
       // Find and open the popup for this hospital
       markersRef.current.forEach(marker => {
-        const popupContent = marker.getPopup()?.getContent();
-        if (popupContent && popupContent.includes(hospital.name)) {
-          marker.openPopup();
+        const popup = marker.getPopup();
+        if (popup) {
+          const content = popup.getContent();
+          if (typeof content === 'string' && content.indexOf(hospital.name) !== -1) {
+            marker.openPopup();
+          }
         }
       });
       
