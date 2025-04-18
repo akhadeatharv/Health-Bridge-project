@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 const Dashboard = () => {
   const navigate = useNavigate();
   const [nearbyHospitals, setNearbyHospitals] = useState<Hospital[]>([]);
+  const [selectedHospital, setSelectedHospital] = useState<Hospital | undefined>();
   
   const departments = [{
     name: "Cardiology",
@@ -43,7 +44,6 @@ const Dashboard = () => {
   }];
 
   const handleLocationSelect = (hospitals: Hospital[]) => {
-    // Enhance hospitals with additional mock data
     const enhancedHospitals = hospitals.map(hospital => ({
       ...hospital,
       totalPatients: Math.floor(Math.random() * 200) + 100,
@@ -72,17 +72,7 @@ const Dashboard = () => {
   };
 
   const handleGetDirections = (hospital: Hospital) => {
-    if (!hospital.location) return;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${hospital.location[0]},${hospital.location[1]}`;
-    window.open(url, '_blank');
-  };
-
-  const handleHospitalClick = (hospital: Hospital) => {
-    console.log("Selected hospital:", hospital);
-    navigate('/hospital-details', { 
-      state: { hospital },
-      replace: true 
-    });
+    setSelectedHospital(hospital);
   };
 
   return (
@@ -94,7 +84,10 @@ const Dashboard = () => {
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">Find Nearby Hospitals</h2>
           <p className="text-gray-500 mb-4">Click on the map to select your location and view nearby hospitals.</p>
-          <LocationMap onLocationSelect={handleLocationSelect} />
+          <LocationMap 
+            onLocationSelect={handleLocationSelect} 
+            selectedHospital={selectedHospital}
+          />
           
           {nearbyHospitals.length > 0 && (
             <div className="mt-6">

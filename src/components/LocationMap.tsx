@@ -23,15 +23,15 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 interface LocationMapProps {
   onLocationSelect: (hospitals: Hospital[]) => void;
+  selectedHospital?: Hospital;
 }
 
-const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
+const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const { userLocation, isLoading, error, getCurrentLocation } = useLocation();
   const markersRef = useRef<L.Marker[]>([]);
-  const [selectedHospital, setSelectedHospital] = useState<string | undefined>();
-
+  
   const nearbyHospitals_: Hospital[] = [
     {
       name: "Central Hospital",
@@ -82,16 +82,39 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
       userMarker.bindPopup("You are here").openPopup();
       markersRef.current.push(userMarker);
 
-      nearbyHospitals_.forEach(hospital => {
-        const hospitalMarker = L.marker(hospital.location)
+      if (selectedHospital) {
+        const hospitalMarker = L.marker(selectedHospital.location)
           .bindPopup(`
-            <h3 class="font-bold">${hospital.name}</h3>
-            <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
-            <p>Distance: ${hospital.distance}</p>
+            <h3 class="font-bold">${selectedHospital.name}</h3>
+            <p>Available beds: ${selectedHospital.bedAvailability.available}/${selectedHospital.bedAvailability.total}</p>
+            <p>Distance: ${selectedHospital.distance}</p>
           `)
-          .addTo(map.current!);
+          .addTo(map.current);
+        hospitalMarker.openPopup();
         markersRef.current.push(hospitalMarker);
-      });
+        
+        // Create a line between user location and hospital
+        const polyline = L.polyline([center, selectedHospital.location], {
+          color: 'blue',
+          weight: 3,
+          opacity: 0.7
+        }).addTo(map.current);
+        
+        // Fit bounds to show both markers
+        const bounds = L.latLngBounds([center, selectedHospital.location]);
+        map.current.fitBounds(bounds, { padding: [50, 50] });
+      } else {
+        nearbyHospitals_.forEach(hospital => {
+          const hospitalMarker = L.marker(hospital.location)
+            .bindPopup(`
+              <h3 class="font-bold">${hospital.name}</h3>
+              <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
+              <p>Distance: ${hospital.distance}</p>
+            `)
+            .addTo(map.current!);
+          markersRef.current.push(hospitalMarker);
+        });
+      }
     } catch (err) {
       console.error("Error initializing map:", err);
       toast({
@@ -112,7 +135,7 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
       initializeMap(userLocation);
       onLocationSelect(hospitals);
     }
-  }, [userLocation]);
+  }, [userLocation, selectedHospital]);
 
   useEffect(() => {
     return () => {
