@@ -3,22 +3,18 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
-import { MapPin, Locate, Navigation } from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { Locate } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useLocation } from '@/hooks/useLocation';
+import { calculateDistance } from '@/utils/distance';
+import HospitalsTable from './HospitalsTable';
+import HospitalSelector from './HospitalSelector';
+import { Hospital } from '@/types/hospital';
 
-// Fixing the Leaflet icon issue
+// Fix Leaflet's default icon issues
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-// Fix Leaflet's default icon issues
 let DefaultIcon = L.icon({
   iconUrl: icon,
   shadowUrl: iconShadow,
@@ -27,16 +23,6 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-interface Hospital {
-  name: string;
-  location: [number, number];
-  bedAvailability: {
-    total: number;
-    available: number;
-  };
-  distance: string;
-}
-
 interface LocationMapProps {
   onLocationSelect: (hospitals: Hospital[]) => void;
 }
@@ -44,9 +30,7 @@ interface LocationMapProps {
 const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { userLocation, isLoading, error, getCurrentLocation } = useLocation();
   const markersRef = useRef<L.Marker[]>([]);
   const [nearbyHospitals, setNearbyHospitals] = useState<Hospital[]>([]);
   const [selectedHospital, setSelectedHospital] = useState<string | undefined>();
@@ -115,121 +99,12 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
       setNearbyHospitals(nearbyHospitals_);
     } catch (err) {
       console.error("Error initializing map:", err);
-      setError("Failed to initialize map. Please try again.");
-    }
-  };
-
-  const getCurrentLocation = () => {
-    console.log("Get current location clicked");
-    setIsLoading(true);
-    setError(null);
-    
-    if ('geolocation' in navigator) {
-      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
-        if (result.state === 'denied') {
-          console.error("Geolocation permission denied");
-          setError("Location permission denied. Please enable GPS in your browser settings.");
-          toast({
-            title: "Permission Denied",
-            description: "Please enable location services for this site in your browser settings.",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          
-          const defaultLocation: [number, number] = [28.6139, 77.2090]; // Default to New Delhi
-          setUserLocation(defaultLocation);
-          initializeMap(defaultLocation);
-          onLocationSelect(nearbyHospitals_);
-          return;
-        }
-        
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            console.log("Location received:", latitude, longitude);
-            setUserLocation([latitude, longitude]);
-            
-            const hospitals = nearbyHospitals_.map(hospital => ({
-              ...hospital,
-              distance: calculateDistance([latitude, longitude], hospital.location) + " km"
-            }));
-            
-            initializeMap([latitude, longitude]);
-            
-            onLocationSelect(hospitals);
-            
-            toast({
-              title: "Location Found",
-              description: "Showing nearby hospitals with bed availability.",
-            });
-            setIsLoading(false);
-          },
-          (error) => {
-            console.error("Geolocation error:", error);
-            let errorMessage = "Could not get your location. ";
-            
-            switch (error.code) {
-              case error.PERMISSION_DENIED:
-                errorMessage += "Location permission denied. Please enable GPS in your browser settings.";
-                break;
-              case error.POSITION_UNAVAILABLE:
-                errorMessage += "Location information is unavailable.";
-                break;
-              case error.TIMEOUT:
-                errorMessage += "Request timed out. Please try again.";
-                break;
-              default:
-                errorMessage += "Please check your GPS settings.";
-            }
-            
-            setError(errorMessage);
-            toast({
-              title: "Error",
-              description: errorMessage,
-              variant: "destructive",
-            });
-            setIsLoading(false);
-            
-            const defaultLocation: [number, number] = [28.6139, 77.2090]; // Default to New Delhi
-            setUserLocation(defaultLocation);
-            initializeMap(defaultLocation);
-            onLocationSelect(nearbyHospitals_);
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 0
-          }
-        );
-      });
-    } else {
-      console.error("Geolocation not supported");
-      setError("Geolocation is not supported by your browser.");
       toast({
         title: "Error",
-        description: "Geolocation is not supported by your browser.",
+        description: "Failed to initialize map. Please try again.",
         variant: "destructive",
       });
-      setIsLoading(false);
-      
-      const defaultLocation: [number, number] = [28.6139, 77.2090]; // Default to New Delhi
-      setUserLocation(defaultLocation);
-      initializeMap(defaultLocation);
-      onLocationSelect(nearbyHospitals_);
     }
-  };
-
-  const calculateDistance = (point1: [number, number], point2: [number, number]): string => {
-    const R = 6371; // Earth's radius in km
-    const dLat = (point2[0] - point1[0]) * Math.PI / 180;
-    const dLon = (point2[1] - point1[1]) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(point1[0] * Math.PI / 180) * Math.cos(point2[0] * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distance = R * c;
-    return distance.toFixed(1);
   };
 
   const handleGetDirections = (hospital: Hospital) => {
@@ -271,6 +146,18 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   };
 
   useEffect(() => {
+    if (userLocation) {
+      const hospitals = nearbyHospitals_.map(hospital => ({
+        ...hospital,
+        distance: calculateDistance(userLocation, hospital.location) + " km"
+      }));
+      
+      initializeMap(userLocation);
+      onLocationSelect(hospitals);
+    }
+  }, [userLocation]);
+
+  useEffect(() => {
     return () => {
       if (map.current) {
         map.current.remove();
@@ -304,72 +191,18 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
 
       {nearbyHospitals.length > 0 && (
         <>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Hospital Name</TableHead>
-                <TableHead>Distance</TableHead>
-                <TableHead>Available Beds</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {nearbyHospitals.map((hospital) => (
-                <TableRow key={hospital.name}>
-                  <TableCell className="font-medium">{hospital.name}</TableCell>
-                  <TableCell>{hospital.distance}</TableCell>
-                  <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      hospital.bedAvailability.available > 10 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                    }`}>
-                      {hospital.bedAvailability.available}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleGetDirections(hospital)}
-                      className="flex items-center gap-2"
-                    >
-                      <Navigation className="h-4 w-4" />
-                      Get Directions
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-
-          <Select onValueChange={handleHospitalSelect} value={selectedHospital}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a hospital" />
-            </SelectTrigger>
-            <SelectContent className="z-[1000] bg-white">
-              {nearbyHospitals.map((hospital) => (
-                <SelectItem 
-                  key={hospital.name} 
-                  value={hospital.name}
-                  className="flex items-center justify-between hover:bg-gray-100 pr-8"
-                >
-                  <div>
-                    {hospital.name} - {hospital.distance} ({hospital.bedAvailability.available} beds)
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleGetDirections(hospital);
-                    }}
-                    className="ml-2"
-                  >
-                    <Navigation className="h-4 w-4" />
-                  </Button>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <HospitalsTable 
+            hospitals={nearbyHospitals}
+            userLocation={userLocation}
+            onGetDirections={handleGetDirections}
+          />
+          <HospitalSelector
+            hospitals={nearbyHospitals}
+            selectedHospital={selectedHospital}
+            userLocation={userLocation}
+            onHospitalSelect={handleHospitalSelect}
+            onGetDirections={handleGetDirections}
+          />
         </>
       )}
     </div>
