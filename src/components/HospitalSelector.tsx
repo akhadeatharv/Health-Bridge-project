@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Button } from './ui/button';
 import { Navigation } from 'lucide-react';
 import { Hospital } from '@/types/hospital';
+import { useNavigate } from 'react-router-dom';
 
 interface HospitalSelectorProps {
   hospitals: Hospital[];
@@ -19,8 +20,26 @@ const HospitalSelector = ({
   onHospitalSelect,
   onGetDirections
 }: HospitalSelectorProps) => {
+  const navigate = useNavigate();
+
+  const handleHospitalClick = (hospital: Hospital) => {
+    navigate('/hospital-details', { 
+      state: { hospital },
+      replace: true 
+    });
+  };
+
   return (
-    <Select onValueChange={onHospitalSelect} value={selectedHospital}>
+    <Select 
+      onValueChange={(value) => {
+        onHospitalSelect(value);
+        const hospital = hospitals.find(h => h.name === value);
+        if (hospital) {
+          handleHospitalClick(hospital);
+        }
+      }} 
+      value={selectedHospital}
+    >
       <SelectTrigger className="w-full">
         <SelectValue placeholder="Select a hospital" />
       </SelectTrigger>

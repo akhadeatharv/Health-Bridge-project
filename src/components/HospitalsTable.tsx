@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Navigation } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Hospital } from '@/types/hospital';
+import { useNavigate } from 'react-router-dom';
 
 interface HospitalsTableProps {
   hospitals: Hospital[];
@@ -11,6 +12,15 @@ interface HospitalsTableProps {
 }
 
 const HospitalsTable = ({ hospitals, userLocation, onGetDirections }: HospitalsTableProps) => {
+  const navigate = useNavigate();
+
+  const handleHospitalClick = (hospital: Hospital) => {
+    navigate('/hospital-details', { 
+      state: { hospital },
+      replace: true 
+    });
+  };
+
   return (
     <Table>
       <TableHeader>
@@ -23,7 +33,11 @@ const HospitalsTable = ({ hospitals, userLocation, onGetDirections }: HospitalsT
       </TableHeader>
       <TableBody>
         {hospitals.map((hospital) => (
-          <TableRow key={hospital.name}>
+          <TableRow 
+            key={hospital.name}
+            className="cursor-pointer hover:bg-gray-50"
+            onClick={() => handleHospitalClick(hospital)}
+          >
             <TableCell className="font-medium">{hospital.name}</TableCell>
             <TableCell>{hospital.distance}</TableCell>
             <TableCell>
@@ -37,7 +51,10 @@ const HospitalsTable = ({ hospitals, userLocation, onGetDirections }: HospitalsT
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onGetDirections(hospital)}
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent row click when clicking the button
+                  onGetDirections(hospital);
+                }}
                 disabled={!userLocation}
                 className="flex items-center gap-2"
               >
