@@ -1,10 +1,9 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
-import { MapPin, Locate } from 'lucide-react';
+import { MapPin, Locate, Navigation } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -13,6 +12,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Alert, AlertDescription } from './ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 // Fixing the Leaflet icon issue
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -51,7 +51,6 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   const [nearbyHospitals, setNearbyHospitals] = useState<Hospital[]>([]);
   const [selectedHospital, setSelectedHospital] = useState<string | undefined>();
 
-  // Sample hospital data - in a real app, this would come from an API
   const nearbyHospitals_: Hospital[] = [
     {
       name: "Central Hospital",
@@ -76,7 +75,6 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   const initializeMap = (center: [number, number]) => {
     console.log("Initializing map with center:", center);
     
-    // Clear any existing map instance first
     if (map.current) {
       map.current.remove();
       map.current = null;
@@ -87,12 +85,10 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
       return;
     }
 
-    // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
     try {
-      // Create new map instance
       map.current = L.map(mapContainer.current).setView(center, 13);
       
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -101,12 +97,10 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
 
       console.log("Map initialized successfully");
 
-      // Add user location marker
       const userMarker = L.marker(center).addTo(map.current);
       userMarker.bindPopup("You are here").openPopup();
       markersRef.current.push(userMarker);
 
-      // Add hospital markers
       nearbyHospitals_.forEach(hospital => {
         const hospitalMarker = L.marker(hospital.location)
           .bindPopup(`
@@ -142,7 +136,6 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
           });
           setIsLoading(false);
           
-          // Fallback to default location
           const defaultLocation: [number, number] = [28.6139, 77.2090]; // Default to New Delhi
           setUserLocation(defaultLocation);
           initializeMap(defaultLocation);
@@ -150,23 +143,19 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
           return;
         }
         
-        // Proceed with getting the location
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
             console.log("Location received:", latitude, longitude);
             setUserLocation([latitude, longitude]);
             
-            // Update hospital distances based on user location
             const hospitals = nearbyHospitals_.map(hospital => ({
               ...hospital,
               distance: calculateDistance([latitude, longitude], hospital.location) + " km"
             }));
             
-            // Initialize the map after we have the location
             initializeMap([latitude, longitude]);
             
-            // Pass the hospitals to the parent component
             onLocationSelect(hospitals);
             
             toast({
@@ -201,7 +190,6 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
             });
             setIsLoading(false);
             
-            // Fallback to default location
             const defaultLocation: [number, number] = [28.6139, 77.2090]; // Default to New Delhi
             setUserLocation(defaultLocation);
             initializeMap(defaultLocation);
@@ -224,7 +212,6 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
       });
       setIsLoading(false);
       
-      // Fallback to default location
       const defaultLocation: [number, number] = [28.6139, 77.2090]; // Default to New Delhi
       setUserLocation(defaultLocation);
       initializeMap(defaultLocation);
@@ -233,7 +220,6 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
   };
 
   const calculateDistance = (point1: [number, number], point2: [number, number]): string => {
-    // Simple distance calculation (this is an approximation)
     const R = 6371; // Earth's radius in km
     const dLat = (point2[0] - point1[0]) * Math.PI / 180;
     const dLon = (point2[1] - point1[1]) * Math.PI / 180;
@@ -246,13 +232,27 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     return distance.toFixed(1);
   };
 
+  const handleGetDirections = (hospital: Hospital) => {
+    if (!userLocation) {
+      toast({
+        title: "Location Required",
+        description: "Please enable location services to get directions.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { location } = hospital;
+    const url = `https://www.google.com/maps/dir/${userLocation[0]},${userLocation[1]}/${location[0]},${location[1]}`;
+    window.open(url, '_blank');
+  };
+
   const handleHospitalSelect = (hospitalName: string) => {
     setSelectedHospital(hospitalName);
     const hospital = nearbyHospitals.find(h => h.name === hospitalName);
     if (hospital && map.current) {
       map.current.setView(hospital.location, 14);
       
-      // Find and open the popup for this hospital
       markersRef.current.forEach(marker => {
         const popup = marker.getPopup();
         if (popup) {
@@ -270,7 +270,6 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
     }
   };
 
-  // Cleanup effect
   useEffect(() => {
     return () => {
       if (map.current) {
@@ -304,22 +303,74 @@ const LocationMap = ({ onLocationSelect }: LocationMapProps) => {
       </div>
 
       {nearbyHospitals.length > 0 && (
-        <Select onValueChange={handleHospitalSelect} value={selectedHospital}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select a hospital" />
-          </SelectTrigger>
-          <SelectContent className="z-[1000] bg-white">
-            {nearbyHospitals.map((hospital) => (
-              <SelectItem 
-                key={hospital.name} 
-                value={hospital.name}
-                className="hover:bg-gray-100"
-              >
-                {hospital.name} - {hospital.distance} ({hospital.bedAvailability.available} beds)
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Hospital Name</TableHead>
+                <TableHead>Distance</TableHead>
+                <TableHead>Available Beds</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {nearbyHospitals.map((hospital) => (
+                <TableRow key={hospital.name}>
+                  <TableCell className="font-medium">{hospital.name}</TableCell>
+                  <TableCell>{hospital.distance}</TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      hospital.bedAvailability.available > 10 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                    }`}>
+                      {hospital.bedAvailability.available}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleGetDirections(hospital)}
+                      className="flex items-center gap-2"
+                    >
+                      <Navigation className="h-4 w-4" />
+                      Get Directions
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          <Select onValueChange={handleHospitalSelect} value={selectedHospital}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a hospital" />
+            </SelectTrigger>
+            <SelectContent className="z-[1000] bg-white">
+              {nearbyHospitals.map((hospital) => (
+                <SelectItem 
+                  key={hospital.name} 
+                  value={hospital.name}
+                  className="flex items-center justify-between hover:bg-gray-100 pr-8"
+                >
+                  <div>
+                    {hospital.name} - {hospital.distance} ({hospital.bedAvailability.available} beds)
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleGetDirections(hospital);
+                    }}
+                    className="ml-2"
+                  >
+                    <Navigation className="h-4 w-4" />
+                  </Button>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </>
       )}
     </div>
   );
