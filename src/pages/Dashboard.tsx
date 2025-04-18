@@ -1,28 +1,11 @@
-
 import DashboardStats from "@/components/DashboardStats";
 import LocationMap from "@/components/LocationMap";
 import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Hospital } from "@/types/hospital";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-interface Hospital {
-  name: string;
-  location: [number, number];
-  bedAvailability: {
-    total: number;
-    available: number;
-  };
-  distance: string;
-  totalPatients?: number;
-  waitTime?: string;
-  opdQueue?: number;
-  departments?: Array<{
-    name: string;
-    doctors: number;
-    patients: number;
-  }>;
-}
+import HospitalsTable from "@/components/HospitalsTable";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -88,6 +71,12 @@ const Dashboard = () => {
     setNearbyHospitals(enhancedHospitals);
   };
 
+  const handleGetDirections = (hospital: Hospital) => {
+    if (!hospital.location) return;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${hospital.location[0]},${hospital.location[1]}`;
+    window.open(url, '_blank');
+  };
+
   const handleHospitalClick = (hospital: Hospital) => {
     console.log("Selected hospital:", hospital);
     navigate('/hospital-details', { 
@@ -110,36 +99,11 @@ const Dashboard = () => {
           {nearbyHospitals.length > 0 && (
             <div className="mt-6">
               <h3 className="text-lg font-semibold mb-3">Nearby Hospitals</h3>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hospital Name</TableHead>
-                    <TableHead>Distance</TableHead>
-                    <TableHead>Total Beds</TableHead>
-                    <TableHead>Available Beds</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {nearbyHospitals.map(hospital => (
-                    <TableRow 
-                      key={hospital.name}
-                      className="cursor-pointer hover:bg-gray-50"
-                      onClick={() => handleHospitalClick(hospital)}
-                    >
-                      <TableCell className="font-medium">{hospital.name}</TableCell>
-                      <TableCell>{hospital.distance}</TableCell>
-                      <TableCell>{hospital.bedAvailability.total}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          hospital.bedAvailability.available > 10 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}>
-                          {hospital.bedAvailability.available}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <HospitalsTable 
+                hospitals={nearbyHospitals}
+                userLocation={null}
+                onGetDirections={handleGetDirections}
+              />
             </div>
           )}
         </Card>
