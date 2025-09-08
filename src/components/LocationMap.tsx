@@ -1,6 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import React, { useEffect, useRef } from 'react';
+import { Loader } from '@googlemaps/js-api-loader';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
 import { Locate } from 'lucide-react';
@@ -9,17 +8,11 @@ import { useLocation } from '@/hooks/useLocation';
 import { calculateDistance } from '@/utils/distance';
 import { Hospital } from '@/types/hospital';
 
-// Fix Leaflet's default icon issues
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+declare global {
+  interface Window {
+    google: typeof google;
+  }
+}
 
 interface LocationMapProps {
   onLocationSelect: (hospitals: Hospital[]) => void;
@@ -28,9 +21,10 @@ interface LocationMapProps {
 
 const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<L.Map | null>(null);
+  const map = useRef<google.maps.Map | null>(null);
   const { userLocation, isLoading, error, getCurrentLocation } = useLocation();
-  const markersRef = useRef<L.Marker[]>([]);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+  const directionsRenderer = useRef<google.maps.DirectionsRenderer | null>(null);
   
   const nearbyHospitals_: Hospital[] = [
     {
@@ -53,65 +47,121 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
     }
   ];
 
-  const initializeMap = (center: [number, number]) => {
+  const initializeMap = async (center: [number, number]) => {
     console.log("Initializing map with center:", center);
-    
-    if (map.current) {
-      map.current.remove();
-      map.current = null;
-    }
     
     if (!mapContainer.current) {
       console.error("Map container ref is null");
       return;
     }
 
-    markersRef.current.forEach(marker => marker.remove());
+    // Clear existing markers
+    markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
+    
+    // Clear existing directions
+    if (directionsRenderer.current) {
+      directionsRenderer.current.setMap(null);
+    }
 
     try {
-      map.current = L.map(mapContainer.current).setView(center, 13);
+      const loader = new Loader({
+        apiKey: "AIzaSyCeKHmAC5EHlPZazIHDdalvLWjs_rx2eqo",
+        version: "weekly",
+        libraries: ["places"]
+      });
+
+      await loader.load();
       
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(map.current);
+      map.current = new google.maps.Map(mapContainer.current, {
+        center: { lat: center[0], lng: center[1] },
+        zoom: 13,
+      });
 
       console.log("Map initialized successfully");
 
-      const userMarker = L.marker(center).addTo(map.current);
-      userMarker.bindPopup("You are here").openPopup();
+      // Add user marker
+      const userMarker = new google.maps.Marker({
+        position: { lat: center[0], lng: center[1] },
+        map: map.current,
+        title: "You are here",
+      });
+
+      const userInfoWindow = new google.maps.InfoWindow({
+        content: "You are here"
+      });
+      userInfoWindow.open(map.current, userMarker);
       markersRef.current.push(userMarker);
 
       if (selectedHospital) {
-        const hospitalMarker = L.marker(selectedHospital.location)
-          .bindPopup(`
-            <h3 class="font-bold">${selectedHospital.name}</h3>
-            <p>Available beds: ${selectedHospital.bedAvailability.available}/${selectedHospital.bedAvailability.total}</p>
-            <p>Distance: ${selectedHospital.distance}</p>
-          `)
-          .addTo(map.current);
-        hospitalMarker.openPopup();
+        // Add hospital marker
+        const hospitalMarker = new google.maps.Marker({
+          position: { lat: selectedHospital.location[0], lng: selectedHospital.location[1] },
+          map: map.current,
+          title: selectedHospital.name,
+        });
+
+        const hospitalInfoWindow = new google.maps.InfoWindow({
+          content: `
+            <div>
+              <h3 style="font-weight: bold; margin: 0 0 8px 0;">${selectedHospital.name}</h3>
+              <p style="margin: 4px 0;">Available beds: ${selectedHospital.bedAvailability.available}/${selectedHospital.bedAvailability.total}</p>
+              <p style="margin: 4px 0;">Distance: ${selectedHospital.distance}</p>
+            </div>
+          `
+        });
+        
+        hospitalMarker.addListener('click', () => {
+          hospitalInfoWindow.open(map.current, hospitalMarker);
+        });
+        hospitalInfoWindow.open(map.current, hospitalMarker);
         markersRef.current.push(hospitalMarker);
         
-        // Create a line between user location and hospital
-        const polyline = L.polyline([center, selectedHospital.location], {
-          color: 'blue',
-          weight: 3,
-          opacity: 0.7
-        }).addTo(map.current);
+        // Create directions between user location and hospital
+        directionsRenderer.current = new google.maps.DirectionsRenderer({
+          suppressMarkers: true // We already have custom markers
+        });
+        directionsRenderer.current.setMap(map.current);
+        
+        const directionsService = new google.maps.DirectionsService();
+        directionsService.route({
+          origin: { lat: center[0], lng: center[1] },
+          destination: { lat: selectedHospital.location[0], lng: selectedHospital.location[1] },
+          travelMode: google.maps.TravelMode.DRIVING,
+        }, (result, status) => {
+          if (status === 'OK' && directionsRenderer.current) {
+            directionsRenderer.current.setDirections(result);
+          }
+        });
         
         // Fit bounds to show both markers
-        const bounds = L.latLngBounds([center, selectedHospital.location]);
-        map.current.fitBounds(bounds, { padding: [50, 50] });
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend({ lat: center[0], lng: center[1] });
+        bounds.extend({ lat: selectedHospital.location[0], lng: selectedHospital.location[1] });
+        map.current.fitBounds(bounds);
       } else {
+        // Add all hospital markers
         nearbyHospitals_.forEach(hospital => {
-          const hospitalMarker = L.marker(hospital.location)
-            .bindPopup(`
-              <h3 class="font-bold">${hospital.name}</h3>
-              <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
-              <p>Distance: ${hospital.distance}</p>
-            `)
-            .addTo(map.current!);
+          const hospitalMarker = new google.maps.Marker({
+            position: { lat: hospital.location[0], lng: hospital.location[1] },
+            map: map.current,
+            title: hospital.name,
+          });
+
+          const infoWindow = new google.maps.InfoWindow({
+            content: `
+              <div>
+                <h3 style="font-weight: bold; margin: 0 0 8px 0;">${hospital.name}</h3>
+                <p style="margin: 4px 0;">Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
+                <p style="margin: 4px 0;">Distance: ${hospital.distance}</p>
+              </div>
+            `
+          });
+
+          hospitalMarker.addListener('click', () => {
+            infoWindow.open(map.current, hospitalMarker);
+          });
+          
           markersRef.current.push(hospitalMarker);
         });
       }
@@ -139,12 +189,11 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
 
   useEffect(() => {
     return () => {
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current.forEach(marker => marker.setMap(null));
       markersRef.current = [];
+      if (directionsRenderer.current) {
+        directionsRenderer.current.setMap(null);
+      }
     };
   }, []);
 
