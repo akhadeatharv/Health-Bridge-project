@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
 import { Locate } from 'lucide-react';
@@ -7,6 +9,18 @@ import { Alert, AlertDescription } from './ui/alert';
 import { useLocation } from '@/hooks/useLocation';
 import { calculateDistance } from '@/utils/distance';
 import { Hospital } from '@/types/hospital';
+
+// Fix Leaflet's default icon issues
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
 
 declare global {
   interface Window {
@@ -21,10 +35,14 @@ interface LocationMapProps {
 
 const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<google.maps.Map | null>(null);
+  const googleMap = useRef<google.maps.Map | null>(null);
+  const leafletMap = useRef<L.Map | null>(null);
   const { userLocation, isLoading, error, getCurrentLocation } = useLocation();
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const googleMarkersRef = useRef<google.maps.Marker[]>([]);
+  const leafletMarkersRef = useRef<L.Marker[]>([]);
   const directionsRenderer = useRef<google.maps.DirectionsRenderer | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [useGoogleMaps, setUseGoogleMaps] = useState(true);
   
   const nearbyHospitals_: Hospital[] = [
     {
@@ -47,17 +65,17 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
     }
   ];
 
-  const initializeMap = async (center: [number, number]) => {
-    console.log("Initializing map with center:", center);
+  const initializeGoogleMap = async (center: [number, number]) => {
+    console.log("Trying to initialize Google Maps with center:", center);
     
     if (!mapContainer.current) {
       console.error("Map container ref is null");
-      return;
+      return false;
     }
 
     // Clear existing markers
-    markersRef.current.forEach(marker => marker.setMap(null));
-    markersRef.current = [];
+    googleMarkersRef.current.forEach(marker => marker.setMap(null));
+    googleMarkersRef.current = [];
     
     // Clear existing directions
     if (directionsRenderer.current) {
@@ -73,31 +91,31 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
 
       await loader.load();
       
-      map.current = new google.maps.Map(mapContainer.current, {
+      googleMap.current = new google.maps.Map(mapContainer.current, {
         center: { lat: center[0], lng: center[1] },
         zoom: 13,
       });
 
-      console.log("Map initialized successfully");
+      console.log("Google Maps initialized successfully");
 
       // Add user marker
       const userMarker = new google.maps.Marker({
         position: { lat: center[0], lng: center[1] },
-        map: map.current,
+        map: googleMap.current,
         title: "You are here",
       });
 
       const userInfoWindow = new google.maps.InfoWindow({
         content: "You are here"
       });
-      userInfoWindow.open(map.current, userMarker);
-      markersRef.current.push(userMarker);
+      userInfoWindow.open(googleMap.current, userMarker);
+      googleMarkersRef.current.push(userMarker);
 
       if (selectedHospital) {
         // Add hospital marker
         const hospitalMarker = new google.maps.Marker({
           position: { lat: selectedHospital.location[0], lng: selectedHospital.location[1] },
-          map: map.current,
+          map: googleMap.current,
           title: selectedHospital.name,
         });
 
@@ -112,16 +130,16 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
         });
         
         hospitalMarker.addListener('click', () => {
-          hospitalInfoWindow.open(map.current, hospitalMarker);
+          hospitalInfoWindow.open(googleMap.current, hospitalMarker);
         });
-        hospitalInfoWindow.open(map.current, hospitalMarker);
-        markersRef.current.push(hospitalMarker);
+        hospitalInfoWindow.open(googleMap.current, hospitalMarker);
+        googleMarkersRef.current.push(hospitalMarker);
         
         // Create directions between user location and hospital
         directionsRenderer.current = new google.maps.DirectionsRenderer({
           suppressMarkers: true // We already have custom markers
         });
-        directionsRenderer.current.setMap(map.current);
+        directionsRenderer.current.setMap(googleMap.current);
         
         const directionsService = new google.maps.DirectionsService();
         directionsService.route({
@@ -138,13 +156,13 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
         const bounds = new google.maps.LatLngBounds();
         bounds.extend({ lat: center[0], lng: center[1] });
         bounds.extend({ lat: selectedHospital.location[0], lng: selectedHospital.location[1] });
-        map.current.fitBounds(bounds);
+        googleMap.current.fitBounds(bounds);
       } else {
         // Add all hospital markers
         nearbyHospitals_.forEach(hospital => {
           const hospitalMarker = new google.maps.Marker({
             position: { lat: hospital.location[0], lng: hospital.location[1] },
-            map: map.current,
+            map: googleMap.current,
             title: hospital.name,
           });
 
@@ -159,19 +177,120 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
           });
 
           hospitalMarker.addListener('click', () => {
-            infoWindow.open(map.current, hospitalMarker);
+            infoWindow.open(googleMap.current, hospitalMarker);
           });
           
-          markersRef.current.push(hospitalMarker);
+          googleMarkersRef.current.push(hospitalMarker);
+        });
+      }
+      
+      setMapError(null);
+      return true;
+    } catch (err) {
+      console.error("Google Maps initialization failed:", err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      
+      if (errorMessage.includes('BillingNotEnabledMapError') || errorMessage.includes('billing')) {
+        setMapError("Google Maps requires billing to be enabled. Using OpenStreetMap as fallback.");
+        toast({
+          title: "Google Maps Billing Required",
+          description: "Enable billing in Google Cloud Console to use Google Maps. Using OpenStreetMap instead.",
+          variant: "destructive",
+        });
+      } else {
+        setMapError("Google Maps failed to load. Using OpenStreetMap as fallback.");
+        toast({
+          title: "Google Maps Error",
+          description: "Failed to load Google Maps. Using OpenStreetMap instead.",
+          variant: "destructive",
+        });
+      }
+      
+      return false;
+    }
+  };
+
+  const initializeLeafletMap = (center: [number, number]) => {
+    console.log("Initializing Leaflet map with center:", center);
+    
+    if (leafletMap.current) {
+      leafletMap.current.remove();
+      leafletMap.current = null;
+    }
+    
+    if (!mapContainer.current) {
+      console.error("Map container ref is null");
+      return;
+    }
+
+    leafletMarkersRef.current.forEach(marker => marker.remove());
+    leafletMarkersRef.current = [];
+
+    try {
+      leafletMap.current = L.map(mapContainer.current).setView(center, 13);
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(leafletMap.current);
+
+      console.log("Leaflet map initialized successfully");
+
+      const userMarker = L.marker(center).addTo(leafletMap.current);
+      userMarker.bindPopup("You are here").openPopup();
+      leafletMarkersRef.current.push(userMarker);
+
+      if (selectedHospital) {
+        const hospitalMarker = L.marker(selectedHospital.location)
+          .bindPopup(`
+            <h3 class="font-bold">${selectedHospital.name}</h3>
+            <p>Available beds: ${selectedHospital.bedAvailability.available}/${selectedHospital.bedAvailability.total}</p>
+            <p>Distance: ${selectedHospital.distance}</p>
+          `)
+          .addTo(leafletMap.current);
+        hospitalMarker.openPopup();
+        leafletMarkersRef.current.push(hospitalMarker);
+        
+        // Create a line between user location and hospital
+        const polyline = L.polyline([center, selectedHospital.location], {
+          color: 'blue',
+          weight: 3,
+          opacity: 0.7
+        }).addTo(leafletMap.current);
+        
+        // Fit bounds to show both markers
+        const bounds = L.latLngBounds([center, selectedHospital.location]);
+        leafletMap.current.fitBounds(bounds, { padding: [50, 50] });
+      } else {
+        nearbyHospitals_.forEach(hospital => {
+          const hospitalMarker = L.marker(hospital.location)
+            .bindPopup(`
+              <h3 class="font-bold">${hospital.name}</h3>
+              <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
+              <p>Distance: ${hospital.distance}</p>
+            `)
+            .addTo(leafletMap.current!);
+          leafletMarkersRef.current.push(hospitalMarker);
         });
       }
     } catch (err) {
-      console.error("Error initializing map:", err);
+      console.error("Error initializing Leaflet map:", err);
       toast({
         title: "Error",
         description: "Failed to initialize map. Please try again.",
         variant: "destructive",
       });
+    }
+  };
+
+  const initializeMap = async (center: [number, number]) => {
+    if (useGoogleMaps) {
+      const googleSuccess = await initializeGoogleMap(center);
+      if (!googleSuccess) {
+        setUseGoogleMaps(false);
+        initializeLeafletMap(center);
+      }
+    } else {
+      initializeLeafletMap(center);
     }
   };
 
@@ -189,10 +308,16 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
 
   useEffect(() => {
     return () => {
-      markersRef.current.forEach(marker => marker.setMap(null));
-      markersRef.current = [];
+      googleMarkersRef.current.forEach(marker => marker.setMap(null));
+      googleMarkersRef.current = [];
+      leafletMarkersRef.current.forEach(marker => marker.remove());
+      leafletMarkersRef.current = [];
       if (directionsRenderer.current) {
         directionsRenderer.current.setMap(null);
+      }
+      if (leafletMap.current) {
+        leafletMap.current.remove();
+        leafletMap.current = null;
       }
     };
   }, []);
@@ -211,6 +336,23 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {mapError && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {mapError}
+            <br />
+            <a 
+              href="https://console.cloud.google.com/billing" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="underline text-blue-600 hover:text-blue-800"
+            >
+              Enable billing in Google Cloud Console
+            </a> to use Google Maps.
+          </AlertDescription>
         </Alert>
       )}
 
