@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader } from '@googlemaps/js-api-loader';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from './ui/button';
@@ -22,12 +21,6 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-declare global {
-  interface Window {
-    google: typeof google;
-  }
-}
-
 interface LocationMapProps {
   onLocationSelect: (hospitals: Hospital[]) => void;
   selectedHospital?: Hospital;
@@ -35,14 +28,9 @@ interface LocationMapProps {
 
 const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const googleMap = useRef<google.maps.Map | null>(null);
-  const leafletMap = useRef<L.Map | null>(null);
+  const map = useRef<L.Map | null>(null);
   const { userLocation, isLoading, error, getCurrentLocation } = useLocation();
-  const googleMarkersRef = useRef<google.maps.Marker[]>([]);
-  const leafletMarkersRef = useRef<L.Marker[]>([]);
-  const directionsRenderer = useRef<google.maps.DirectionsRenderer | null>(null);
-  const [mapError, setMapError] = useState<string | null>(null);
-  const [useGoogleMaps, setUseGoogleMaps] = useState(true);
+  const markersRef = useRef<L.Marker[]>([]);
   
   const nearbyHospitals_: Hospital[] = [
     {
@@ -65,157 +53,12 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
     }
   ];
 
-  const initializeGoogleMap = async (center: [number, number]) => {
-    console.log("Trying to initialize Google Maps with center:", center);
+  const initializeMap = (center: [number, number]) => {
+    console.log("Initializing map with center:", center);
     
-    if (!mapContainer.current) {
-      console.error("Map container ref is null");
-      return false;
-    }
-
-    // Clear existing markers
-    googleMarkersRef.current.forEach(marker => marker.setMap(null));
-    googleMarkersRef.current = [];
-    
-    // Clear existing directions
-    if (directionsRenderer.current) {
-      directionsRenderer.current.setMap(null);
-    }
-
-    try {
-      const loader = new Loader({
-        apiKey: "AIzaSyCeKHmAC5EHlPZazIHDdalvLWjs_rx2eqo",
-        version: "weekly",
-        libraries: ["places"]
-      });
-
-      await loader.load();
-      
-      googleMap.current = new google.maps.Map(mapContainer.current, {
-        center: { lat: center[0], lng: center[1] },
-        zoom: 13,
-      });
-
-      console.log("Google Maps initialized successfully");
-
-      // Add user marker
-      const userMarker = new google.maps.Marker({
-        position: { lat: center[0], lng: center[1] },
-        map: googleMap.current,
-        title: "You are here",
-      });
-
-      const userInfoWindow = new google.maps.InfoWindow({
-        content: "You are here"
-      });
-      userInfoWindow.open(googleMap.current, userMarker);
-      googleMarkersRef.current.push(userMarker);
-
-      if (selectedHospital) {
-        // Add hospital marker
-        const hospitalMarker = new google.maps.Marker({
-          position: { lat: selectedHospital.location[0], lng: selectedHospital.location[1] },
-          map: googleMap.current,
-          title: selectedHospital.name,
-        });
-
-        const hospitalInfoWindow = new google.maps.InfoWindow({
-          content: `
-            <div>
-              <h3 style="font-weight: bold; margin: 0 0 8px 0;">${selectedHospital.name}</h3>
-              <p style="margin: 4px 0;">Available beds: ${selectedHospital.bedAvailability.available}/${selectedHospital.bedAvailability.total}</p>
-              <p style="margin: 4px 0;">Distance: ${selectedHospital.distance}</p>
-            </div>
-          `
-        });
-        
-        hospitalMarker.addListener('click', () => {
-          hospitalInfoWindow.open(googleMap.current, hospitalMarker);
-        });
-        hospitalInfoWindow.open(googleMap.current, hospitalMarker);
-        googleMarkersRef.current.push(hospitalMarker);
-        
-        // Create directions between user location and hospital
-        directionsRenderer.current = new google.maps.DirectionsRenderer({
-          suppressMarkers: true // We already have custom markers
-        });
-        directionsRenderer.current.setMap(googleMap.current);
-        
-        const directionsService = new google.maps.DirectionsService();
-        directionsService.route({
-          origin: { lat: center[0], lng: center[1] },
-          destination: { lat: selectedHospital.location[0], lng: selectedHospital.location[1] },
-          travelMode: google.maps.TravelMode.DRIVING,
-        }, (result, status) => {
-          if (status === 'OK' && directionsRenderer.current) {
-            directionsRenderer.current.setDirections(result);
-          }
-        });
-        
-        // Fit bounds to show both markers
-        const bounds = new google.maps.LatLngBounds();
-        bounds.extend({ lat: center[0], lng: center[1] });
-        bounds.extend({ lat: selectedHospital.location[0], lng: selectedHospital.location[1] });
-        googleMap.current.fitBounds(bounds);
-      } else {
-        // Add all hospital markers
-        nearbyHospitals_.forEach(hospital => {
-          const hospitalMarker = new google.maps.Marker({
-            position: { lat: hospital.location[0], lng: hospital.location[1] },
-            map: googleMap.current,
-            title: hospital.name,
-          });
-
-          const infoWindow = new google.maps.InfoWindow({
-            content: `
-              <div>
-                <h3 style="font-weight: bold; margin: 0 0 8px 0;">${hospital.name}</h3>
-                <p style="margin: 4px 0;">Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
-                <p style="margin: 4px 0;">Distance: ${hospital.distance}</p>
-              </div>
-            `
-          });
-
-          hospitalMarker.addListener('click', () => {
-            infoWindow.open(googleMap.current, hospitalMarker);
-          });
-          
-          googleMarkersRef.current.push(hospitalMarker);
-        });
-      }
-      
-      setMapError(null);
-      return true;
-    } catch (err) {
-      console.error("Google Maps initialization failed:", err);
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      
-      if (errorMessage.includes('BillingNotEnabledMapError') || errorMessage.includes('billing')) {
-        setMapError("Google Maps requires billing to be enabled. Using OpenStreetMap as fallback.");
-        toast({
-          title: "Google Maps Billing Required",
-          description: "Enable billing in Google Cloud Console to use Google Maps. Using OpenStreetMap instead.",
-          variant: "destructive",
-        });
-      } else {
-        setMapError("Google Maps failed to load. Using OpenStreetMap as fallback.");
-        toast({
-          title: "Google Maps Error",
-          description: "Failed to load Google Maps. Using OpenStreetMap instead.",
-          variant: "destructive",
-        });
-      }
-      
-      return false;
-    }
-  };
-
-  const initializeLeafletMap = (center: [number, number]) => {
-    console.log("Initializing Leaflet map with center:", center);
-    
-    if (leafletMap.current) {
-      leafletMap.current.remove();
-      leafletMap.current = null;
+    if (map.current) {
+      map.current.remove();
+      map.current = null;
     }
     
     if (!mapContainer.current) {
@@ -223,21 +66,21 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
       return;
     }
 
-    leafletMarkersRef.current.forEach(marker => marker.remove());
-    leafletMarkersRef.current = [];
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current = [];
 
     try {
-      leafletMap.current = L.map(mapContainer.current).setView(center, 13);
+      map.current = L.map(mapContainer.current).setView(center, 13);
       
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
-      }).addTo(leafletMap.current);
+      }).addTo(map.current);
 
-      console.log("Leaflet map initialized successfully");
+      console.log("Map initialized successfully");
 
-      const userMarker = L.marker(center).addTo(leafletMap.current);
+      const userMarker = L.marker(center).addTo(map.current);
       userMarker.bindPopup("You are here").openPopup();
-      leafletMarkersRef.current.push(userMarker);
+      markersRef.current.push(userMarker);
 
       if (selectedHospital) {
         const hospitalMarker = L.marker(selectedHospital.location)
@@ -246,20 +89,20 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
             <p>Available beds: ${selectedHospital.bedAvailability.available}/${selectedHospital.bedAvailability.total}</p>
             <p>Distance: ${selectedHospital.distance}</p>
           `)
-          .addTo(leafletMap.current);
+          .addTo(map.current);
         hospitalMarker.openPopup();
-        leafletMarkersRef.current.push(hospitalMarker);
+        markersRef.current.push(hospitalMarker);
         
         // Create a line between user location and hospital
         const polyline = L.polyline([center, selectedHospital.location], {
           color: 'blue',
           weight: 3,
           opacity: 0.7
-        }).addTo(leafletMap.current);
+        }).addTo(map.current);
         
         // Fit bounds to show both markers
         const bounds = L.latLngBounds([center, selectedHospital.location]);
-        leafletMap.current.fitBounds(bounds, { padding: [50, 50] });
+        map.current.fitBounds(bounds, { padding: [50, 50] });
       } else {
         nearbyHospitals_.forEach(hospital => {
           const hospitalMarker = L.marker(hospital.location)
@@ -268,29 +111,17 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
               <p>Available beds: ${hospital.bedAvailability.available}/${hospital.bedAvailability.total}</p>
               <p>Distance: ${hospital.distance}</p>
             `)
-            .addTo(leafletMap.current!);
-          leafletMarkersRef.current.push(hospitalMarker);
+            .addTo(map.current!);
+          markersRef.current.push(hospitalMarker);
         });
       }
     } catch (err) {
-      console.error("Error initializing Leaflet map:", err);
+      console.error("Error initializing map:", err);
       toast({
         title: "Error",
         description: "Failed to initialize map. Please try again.",
         variant: "destructive",
       });
-    }
-  };
-
-  const initializeMap = async (center: [number, number]) => {
-    if (useGoogleMaps) {
-      const googleSuccess = await initializeGoogleMap(center);
-      if (!googleSuccess) {
-        setUseGoogleMaps(false);
-        initializeLeafletMap(center);
-      }
-    } else {
-      initializeLeafletMap(center);
     }
   };
 
@@ -308,17 +139,12 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
 
   useEffect(() => {
     return () => {
-      googleMarkersRef.current.forEach(marker => marker.setMap(null));
-      googleMarkersRef.current = [];
-      leafletMarkersRef.current.forEach(marker => marker.remove());
-      leafletMarkersRef.current = [];
-      if (directionsRenderer.current) {
-        directionsRenderer.current.setMap(null);
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
       }
-      if (leafletMap.current) {
-        leafletMap.current.remove();
-        leafletMap.current = null;
-      }
+      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current = [];
     };
   }, []);
 
@@ -336,23 +162,6 @@ const LocationMap = ({ onLocationSelect, selectedHospital }: LocationMapProps) =
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {mapError && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            {mapError}
-            <br />
-            <a 
-              href="https://console.cloud.google.com/billing" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="underline text-blue-600 hover:text-blue-800"
-            >
-              Enable billing in Google Cloud Console
-            </a> to use Google Maps.
-          </AlertDescription>
         </Alert>
       )}
 
